@@ -1,0 +1,590 @@
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  nationalId String   @unique
+  firstName  String
+  lastName   String
+  email      String   @unique
+  phone      String   @unique
+  password   String
+  role       UserRole
+  isActive   Boolean  @default(true)
+  lastLogin  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  doctor     Doctor?
+  patient    Patient?
+  adminUser  AdminUser?
+  labTech    LabTech?
+  pharmacist Pharmacist?
+  
+  // Audit fields
+  createdBy  String?  @db.ObjectId
+  updatedBy  String?  @db.ObjectId
+
+  @@map("users")
+}
+
+model Doctor {
+  id             String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String  @unique @db.ObjectId
+  licenseNumber  String  @unique
+  specialization String
+  hospitalId     String  @db.ObjectId
+  isActive       Boolean @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  // createdBy  String   @db.ObjectId
+
+  // Relations
+  user                    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital                Hospital                  @relation(fields: [hospitalId], references: [id])
+  appointments            Appointment[]
+  medicalRecords          MedicalRecord[]
+  doctorPatientAssignments DoctorPatientAssignment[]
+  vitals                  Vital[]
+  alerts                  Alert[]                   @relation("CreatedAlerts")
+  resolvedAlerts          Alert[]                   @relation("ResolvedAlerts")
+  labRequests             LabRequest[]
+  prescriptions           Prescription[]
+
+  @@map("doctors")
+}
+
+model LabTech {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @unique @db.ObjectId
+  licenseNumber String?  @unique
+  hospitalId    String   @db.ObjectId
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital    Hospital   @relation(fields: [hospitalId], references: [id])
+  labRequests LabRequest[] // Assigned requests
+
+  @@map("lab_techs")
+}
+
+model Pharmacist {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @unique @db.ObjectId
+  licenseNumber String   @unique
+  pharmacyId    String   @db.ObjectId
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pharmacy      Pharmacy     @relation(fields: [pharmacyId], references: [id])
+  prescriptions Prescription[] // Dispensed prescriptions (optional)
+
+  @@map("pharmacists")
+}
+
+model Pharmacy {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  code          String     @unique
+  address       String
+  phone         String
+  email         String
+  region        String
+  type          String?    // public, private, etc.
+  status        String     @default("active")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  createdBy     String     @db.ObjectId
+
+  // Relations
+  pharmacists   Pharmacist[]
+  prescriptions Prescription[]
+
+  @@map("pharmacies")
+}
+
+model Patient {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @unique @db.ObjectId
+  faydaId     String    @unique
+  dateOfBirth DateTime
+  gender      Gender
+  bloodType   String?
+  height      Float?
+  weight      Float?
+  allergies   String[]  @default([])
+  chronicConditions String[] @default([])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  user                    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments            Appointment[]
+  medicalRecords          MedicalRecord[]
+  doctorPatientAssignments DoctorPatientAssignment[]
+  vitals                  Vital[]
+  patientVitals           PatientVital[]
+  patientDevices          PatientDevice[]
+  healthAlerts            HealthAlert[]
+  appointmentRequests     AppointmentRequest[]
+  emergencyContacts       PatientEmergencyContact[]
+  alerts                  Alert[]
+  labRequests             LabRequest[]
+  prescriptions           Prescription[]
+
+  @@map("patients")
+}
+
+model Hospital {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  code           String        @unique
+  address        String
+  phone          String
+  email          String
+  region         String
+  type           HospitalType
+  operatingHours Json
+  status         HospitalStatus @default(active)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  createdBy  String   @db.ObjectId 
+
+  // Relations
+  doctors            Doctor[]
+  adminUsers         AdminUser[]
+  appointments       Appointment[]
+  appointmentRequests AppointmentRequest[]
+  systemSettings     SystemSetting[]
+  reports            Report[]
+  labTechs           LabTech[]
+
+  @@map("hospitals")
+}
+
+model AdminUser {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String     @unique @db.ObjectId
+  hospitalId  String?    @db.ObjectId
+  role        AdminRole
+  permissions String[]   @default([])
+  lastLogin   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital Hospital? @relation(fields: [hospitalId], references: [id])
+
+  @@map("admin_users")
+}
+
+model DoctorPatientAssignment {
+  id           String                    @id @default(auto()) @map("_id") @db.ObjectId
+  doctorId     String                    @db.ObjectId
+  patientId    String                    @db.ObjectId
+  status       AssignmentStatus          @default(active)
+  assignedAt   DateTime                  @default(now())
+  lastModified DateTime                  @updatedAt
+
+  // Relations
+  doctor  Doctor  @relation(fields: [doctorId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@unique([doctorId, patientId])
+  @@map("doctor_patient_assignments")
+}
+
+model Appointment {
+  id            String            @id @default(auto()) @map("_id") @db.ObjectId
+  patientId     String            @db.ObjectId
+  doctorId      String            @db.ObjectId
+  hospitalId    String            @db.ObjectId
+  scheduledTime DateTime
+  duration      Int               @default(30)
+  type          AppointmentType
+  status        AppointmentStatus @default(pending)
+  notes         String?
+  reason        String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relations
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  hospital  Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@map("appointments")
+}
+
+model MedicalRecord {
+  id         String             @id @default(auto()) @map("_id") @db.ObjectId
+  patientId  String             @db.ObjectId
+  doctorId   String             @db.ObjectId
+  recordType MedicalRecordType
+  title      String
+  content    Json
+  status     String             @default("active")
+  attachments String[]          @default([])
+  date       DateTime           @default(now())
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  Doctor  @relation(fields: [doctorId], references: [id])
+
+  @@map("medical_records")
+}
+
+model Vital {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  patientId  String      @db.ObjectId
+  doctorId   String?     @db.ObjectId
+  type       String
+  value      Float
+  unit       String
+  source     VitalSource @default(manual)
+  notes      String?
+  recordedAt DateTime    @default(now())
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  Doctor? @relation(fields: [doctorId], references: [id])
+
+  @@map("vitals")
+}
+
+model PatientVital {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId String   @db.ObjectId
+  type      String
+  value     Float
+  unit      String
+  timestamp DateTime
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("patient_vitals")
+}
+
+model PatientDevice {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  patientId    String     @db.ObjectId
+  deviceId     String     @unique
+  deviceType   DeviceType
+  manufacturer String?
+  model        String?
+  lastSync     DateTime?
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("patient_devices")
+}
+
+model LabRequest {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  patientId     String      @db.ObjectId
+  doctorId      String      @db.ObjectId
+  labTechId     String?     @db.ObjectId
+  testType      String
+  instructions  String?
+  status        String      @default("pending") // pending, in_progress, completed, cancelled
+  results       Json?
+  attachments   String[]    @default([]) // For lab results files/photos
+  requestedAt   DateTime    @default(now())
+  completedAt   DateTime?
+
+  // Relations
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  doctor        Doctor      @relation(fields: [doctorId], references: [id])
+  labTech       LabTech?    @relation(fields: [labTechId], references: [id])
+
+  @@map("lab_requests")
+}
+
+model Prescription {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId     String   @db.ObjectId
+  doctorId      String   @db.ObjectId
+  pharmacyId    String?  @db.ObjectId
+  medications   Json[]   // [{drug: string, dosage: string, duration: string, etc.}]
+  instructions  String?
+  status        String   @default("pending") // pending, dispensed, cancelled
+  issuedAt      DateTime @default(now())
+  dispensedAt   DateTime?
+
+  // Relations
+  patient       Patient  @relation(fields: [patientId], references: [id])
+  doctor        Doctor   @relation(fields: [doctorId], references: [id])
+  pharmacy      Pharmacy? @relation(fields: [pharmacyId], references: [id])
+  pharmacist    Pharmacist? @relation(fields: [pharmacistId], references: [id]) // Optional: who dispensed
+
+  pharmacistId  String?  @db.ObjectId // Added for relation
+
+  @@map("prescriptions")
+}
+
+model Alert {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  patientId   String      @db.ObjectId
+  createdBy   String      @db.ObjectId
+  severity    AlertSeverity
+  type        AlertType
+  message     String
+  isResolved  Boolean     @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?     @db.ObjectId
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  patient       Patient @relation(fields: [patientId], references: [id])
+  createdByDoctor Doctor  @relation("CreatedAlerts", fields: [createdBy], references: [id])
+  resolvedByDoctor Doctor? @relation("ResolvedAlerts", fields: [resolvedBy], references: [id])
+
+  @@map("alerts")
+}
+
+model HealthAlert {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  patientId       String        @db.ObjectId
+  type            HealthAlertType
+  message         String
+  severity        AlertSeverity
+  isRead          Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  relatedRecordId String?       @db.ObjectId
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("health_alerts")
+}
+
+model AppointmentRequest {
+  id             String                    @id @default(auto()) @map("_id") @db.ObjectId
+  patientId      String                    @db.ObjectId
+  doctorId       String?                   @db.ObjectId
+  hospitalId     String?                   @db.ObjectId
+  requestedDate  DateTime
+  preferredTime  String?
+  reason         String
+  status         AppointmentRequestStatus  @default(pending)
+  notes          String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  // Relations
+  patient  Patient   @relation(fields: [patientId], references: [id])
+  hospital Hospital? @relation(fields: [hospitalId], references: [id])
+
+  @@map("appointment_requests")
+}
+
+model PatientEmergencyContact {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId    String   @db.ObjectId
+  name         String
+  relationship String
+  phone        String
+  email        String?
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("patient_emergency_contacts")
+}
+
+model SystemSetting {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  hospitalId  String      @db.ObjectId
+  settingType SettingType
+  key         String
+  value       Json
+  updatedBy   String      @db.ObjectId
+  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime    @default(now())
+
+  // Relations
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@unique([hospitalId, key])
+  @@map("system_settings")
+}
+
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  action      String
+  entityType  String
+  entityId    String
+  performedBy String   @db.ObjectId
+  metadata    Json?
+  timestamp   DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  @@map("audit_logs")
+}
+
+model Report {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  hospitalId  String       @db.ObjectId
+  type        ReportType
+  title       String
+  generatedBy String       @db.ObjectId
+  status      ReportStatus @default(pending)
+  fileUrl     String?
+  parameters  Json
+  createdAt   DateTime     @default(now())
+  completedAt DateTime?
+
+  // Relations
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@map("reports")
+}
+
+// Enums
+enum UserRole {
+  patient
+  doctor
+  lab_tech
+  pharmacist
+  hospital_admin
+  moh_admin
+  super_admin
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum HospitalType {
+  public
+  private
+  specialized
+}
+
+enum HospitalStatus {
+  active
+  inactive
+  maintenance
+}
+
+enum AdminRole {
+  super_admin
+  hospital_admin
+  department_admin
+}
+
+enum AssignmentStatus {
+  active
+  transferred
+  inactive
+}
+
+enum AppointmentType {
+  new
+  checkup
+  consultation
+  followup
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  cancelled
+  completed
+}
+
+enum MedicalRecordType {
+  consultation
+  prescription
+  lab_order
+  diagnosis
+}
+
+enum VitalSource {
+  manual
+  device
+}
+
+enum DeviceType {
+  bp_monitor
+  glucose_meter
+  fitness_tracker
+  other
+}
+
+enum AlertSeverity {
+  low
+  medium
+  high
+}
+
+enum AlertType {
+  vital
+  medication
+  test_result
+  other
+}
+
+enum HealthAlertType {
+  medication
+  appointment
+  vital
+  general
+}
+
+enum AppointmentRequestStatus {
+  pending
+  confirmed
+  rejected
+  cancelled
+}
+
+enum SettingType {
+  security
+  notification
+  integration
+  general
+}
+
+enum ReportType {
+  patient
+  staff
+  financial
+  system
+}
+
+enum ReportStatus {
+  pending
+  completed
+  failed
+}
