@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const adminController_1 = require("../controllers/adminController");
+const auth_1 = require("../middleware/auth");
+const router = (0, express_1.Router)();
+router.use(auth_1.authenticate, auth_1.requireHospitalAdmin);
+router.get("/hospital", adminController_1.AdminController.getHospitalInfo);
+router.put("/hospital", adminController_1.AdminController.updateHospitalInfo);
+router.get("/doctors", adminController_1.AdminController.getDoctors);
+router.post("/doctors", adminController_1.AdminController.addDoctor);
+router.put("/doctors/:id", adminController_1.AdminController.updateDoctor);
+router.get("/lab-techs", adminController_1.AdminController.getLabTechs);
+router.post("/lab-techs", adminController_1.AdminController.addLabTech);
+router.put("/lab-techs/:id", adminController_1.AdminController.updateLabTech);
+router.post("/reports/generate", adminController_1.AdminController.generateReport);
+router.get("/settings", adminController_1.AdminController.getSettings);
+router.put("/settings", adminController_1.AdminController.updateSettings);
+exports.default = router;
+//# sourceMappingURL=admin.js.map

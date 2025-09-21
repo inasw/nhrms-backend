@@ -1,0 +1,21 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const superAdminController_1 = require("../controllers/superAdminController");
+const auth_1 = require("../middleware/auth");
+const rateLimiter_1 = require("../middleware/rateLimiter");
+const router = (0, express_1.Router)();
+router.use(auth_1.authenticate, auth_1.requireSuperAdmin);
+router.use("/facilities", rateLimiter_1.strictLimiter);
+router.use("/admins", rateLimiter_1.strictLimiter);
+router.get("/facilities", superAdminController_1.SuperAdminController.getFacilities);
+router.post("/facilities", superAdminController_1.SuperAdminController.registerFacility);
+router.get("/facilities/:id", superAdminController_1.SuperAdminController.getFacilityDetails);
+router.put("/facilities/:id", superAdminController_1.SuperAdminController.updateFacility);
+router.get("/admins", superAdminController_1.SuperAdminController.getFacilityAdmins);
+router.post("/admins", superAdminController_1.SuperAdminController.createFacilityAdmin);
+router.put("/admins/:id", superAdminController_1.SuperAdminController.updateFacilityAdmin);
+router.get("/dashboard/stats", superAdminController_1.SuperAdminController.getDashboardStats);
+router.get("/audit-logs", superAdminController_1.SuperAdminController.getAuditLogs);
+exports.default = router;
+//# sourceMappingURL=superAdmin.js.map
