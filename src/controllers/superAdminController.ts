@@ -2,7 +2,7 @@ import type { Response } from "express"
 import bcrypt from "bcryptjs"
 import prisma from "../config/database"
 import type { AuthenticatedRequest, ApiResponse } from "../types"
-
+import type { PrismaClient } from "@prisma/client";
 
 export class SuperAdminController {
   // Get all facilities
@@ -273,38 +273,123 @@ export class SuperAdminController {
   }
 
   // Create facility administrator
+  // static async createFacilityAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  //   try {
+  //     // const { firstName, lastName, email, phone, password, hospitalId, permissions } = req.body
+  //     const { user, hospitalId, permissions } = req.body
+  //     const { firstName, lastName, email, phone, password } = user
+  //     // Check if user already exists
+  //     const existingUser = await prisma.user.findFirst({
+  //       where: {
+  //         OR: [{ email }, { phone }],
+  //       },
+  //     })
+
+  //     if (existingUser) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         error: "User with this email or phone already exists",
+  //       } as ApiResponse)
+  //     }
+
+  //     if (!password) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         error: "Password is required",
+  //       } as ApiResponse)
+  // }
+  //     // Hash password
+  //     const hashedPassword = await bcrypt.hash(password, 12)
+  //     // console.log("Password received:", password)
+
+
+  //     // Create user and admin in transaction
+  //     const result = await prisma.$transaction(async (tx) => {
+  //       const user = await tx.user.create({
+  //         data: {
+  //           nationalId: email, // Using email as national ID for admins
+  //           firstName,
+  //           lastName,
+  //           email,
+  //           phone,
+  //           password: hashedPassword,
+  //           role: "hospital_admin",
+  //           createdBy: req.user!.id,
+  //         },
+  //       })
+
+  //       const admin = await tx.adminUser.create({
+  //         data: {
+  //           userId: user.id,
+  //           hospitalId,
+  //           role: "hospital_admin",
+  //           permissions: permissions || [],
+  //         },
+  //       })
+
+  //       return { user, admin }
+  //     })
+
+  //     // Log the action
+  //     await prisma.auditLog.create({
+  //       data: {
+  //         action: "admin_created",
+  //         entityType: "AdminUser",
+  //         entityId: result.admin.id,
+  //         performedBy: req.user!.id,
+  //         metadata: { email, hospitalId },
+  //       },
+  //     })
+
+  //     return res.status(201).json({
+  //       success: true,
+  //       data: {
+  //         message: "Facility administrator created successfully",
+  //         adminId: result.admin.id,
+  //       },
+  //     } as ApiResponse)
+  //   } catch (error) {
+  //     console.error("Create facility admin error:", error)
+  //     return res.status(500).json({
+  //       success: false,
+  //       error: "Internal server error",
+  //     } as ApiResponse)
+  //   }
+  // }
   static async createFacilityAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
-    try {
-      // const { firstName, lastName, email, phone, password, hospitalId, permissions } = req.body
-      const { user, hospitalId, permissions } = req.body
-      const { firstName, lastName, email, phone, password } = user
-      // Check if user already exists
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [{ email }, { phone }],
-        },
-      })
+  try {
+    const { user, hospitalId, permissions } = req.body;
+    const { firstName, lastName, email, phone, password } = user;
 
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          error: "User with this email or phone already exists",
-        } as ApiResponse)
-      }
+    // Check if user already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { phone }],
+      },
+    });
 
-      if (!password) {
-        return res.status(400).json({
-          success: false,
-          error: "Password is required",
-        } as ApiResponse)
-  }
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 12)
-      // console.log("Password received:", password)
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: "User with this email or phone already exists",
+      } as ApiResponse);
+    }
 
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: "Password is required",
+      } as ApiResponse);
+    }
 
-      // Create user and admin in transaction
-      const result = await prisma.$transaction(async (tx) => {
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create user and admin in transaction
+    const result = await prisma.$transaction(
+      async (
+        tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">
+      ): Promise<{ user: any; admin: any }> => {
         const user = await tx.user.create({
           data: {
             nationalId: email, // Using email as national ID for admins
@@ -316,7 +401,7 @@ export class SuperAdminController {
             role: "hospital_admin",
             createdBy: req.user!.id,
           },
-        })
+        });
 
         const admin = await tx.adminUser.create({
           data: {
@@ -325,150 +410,264 @@ export class SuperAdminController {
             role: "hospital_admin",
             permissions: permissions || [],
           },
-        })
+        });
 
-        return { user, admin }
-      })
+        return { user, admin };
+      }
+    );
 
-      // Log the action
-      await prisma.auditLog.create({
-        data: {
-          action: "admin_created",
-          entityType: "AdminUser",
-          entityId: result.admin.id,
-          performedBy: req.user!.id,
-          metadata: { email, hospitalId },
-        },
-      })
+    // Log the action
+    await prisma.auditLog.create({
+      data: {
+        action: "admin_created",
+        entityType: "AdminUser",
+        entityId: result.admin.id,
+        performedBy: req.user!.id,
+        metadata: { email, hospitalId },
+      },
+    });
 
-      return res.status(201).json({
-        success: true,
-        data: {
-          message: "Facility administrator created successfully",
-          adminId: result.admin.id,
-        },
-      } as ApiResponse)
-    } catch (error) {
-      console.error("Create facility admin error:", error)
-      return res.status(500).json({
-        success: false,
-        error: "Internal server error",
-      } as ApiResponse)
-    }
+    return res.status(201).json({
+      success: true,
+      data: {
+        message: "Facility administrator created successfully",
+        adminId: result.admin.id,
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error("Create facility admin error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    } as ApiResponse);
   }
+}
 
     // Update facility administrator
-  static async updateFacilityAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
-    try {
-      const { id } = req.params
-      const { user, hospitalId, permissions, isActive } = req.body
-      const { firstName, lastName, email, phone, password } = user || {}
+  // static async updateFacilityAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  //   try {
+  //     const { id } = req.params
+  //     const { user, hospitalId, permissions, isActive } = req.body
+  //     const { firstName, lastName, email, phone, password } = user || {}
 
-      // Check if admin exists
-      const existingAdmin = await prisma.adminUser.findUnique({
-        where: { id },
-        include: { user: true },
-      })
+  //     // Check if admin exists
+  //     const existingAdmin = await prisma.adminUser.findUnique({
+  //       where: { id },
+  //       include: { user: true },
+  //     })
 
-      if (!existingAdmin) {
-        return res.status(404).json({
+  //     if (!existingAdmin) {
+  //       return res.status(404).json({
+  //         success: false,
+  //         error: "Administrator not found",
+  //       } as ApiResponse)
+  //     }
+
+  //     // Check if new email/phone is already in use by another user
+  //     if (email || phone) {
+  //       const existingUser = await prisma.user.findFirst({
+  //         where: {
+  //           OR: [
+  //             { email: email || undefined, id: { not: existingAdmin.userId } },
+  //             { phone: phone || undefined, id: { not: existingAdmin.userId } },
+  //           ],
+  //         },
+  //       })
+
+  //       if (existingUser) {
+  //         return res.status(400).json({
+  //           success: false,
+  //           error: "Email or phone already in use by another user",
+  //         } as ApiResponse)
+  //       }
+  //     }
+
+  //     // Prepare update data
+  //     const userUpdateData: any = {}
+  //     if (firstName) userUpdateData.firstName = firstName
+  //     if (lastName) userUpdateData.lastName = lastName
+  //     if (email) userUpdateData.email = email
+  //     if (phone) userUpdateData.phone = phone
+  //     if (password) userUpdateData.password = await bcrypt.hash(password, 12)
+  //     if (isActive !== undefined) userUpdateData.isActive = isActive
+
+  //     const adminUpdateData: any = {}
+  //     if (hospitalId) adminUpdateData.hospitalId = hospitalId
+  //     if (permissions) adminUpdateData.permissions = permissions
+
+  //     // Update user and admin in transaction
+  //     const result = await prisma.$transaction(async (tx) => {
+  //       let updatedUser = existingAdmin.user
+  //       if (Object.keys(userUpdateData).length > 0) {
+  //         updatedUser = await tx.user.update({
+  //           where: { id: existingAdmin.userId },
+  //           data: userUpdateData,
+  //         })
+  //       }
+
+  //       let updatedAdmin = existingAdmin
+  //       if (Object.keys(adminUpdateData).length > 0) {
+  //         updatedAdmin = await tx.adminUser.update({
+  //           where: { id },
+  //           data: adminUpdateData,
+  //           include: { user: true },
+  //         })
+  //       } else {
+  //         // If not updated, fetch with user relation
+  //         updatedAdmin = await tx.adminUser.findUnique({
+  //           where: { id },
+  //           include: { user: true },
+  //         }) as typeof existingAdmin
+  //       }
+
+  //       return { user: updatedUser, admin: updatedAdmin }
+  //     })
+
+  //     // Log the action
+  //     await prisma.auditLog.create({
+  //       data: {
+  //         action: "admin_updated",
+  //         entityType: "AdminUser",
+  //         entityId: id,
+  //         performedBy: req.user!.id,
+  //         metadata: {
+  //           updatedFields: {
+  //             user: userUpdateData,
+  //             admin: adminUpdateData,
+  //           },
+  //         },
+  //       },
+  //     })
+
+  //     return res.json({
+  //       success: true,
+  //       data: {
+  //         message: "Facility administrator updated successfully",
+  //         adminId: result.admin.id,
+  //       },
+  //     } as ApiResponse)
+  //   } catch (error) {
+  //     console.error("Update facility admin error:", error)
+  //     return res.status(500).json({
+  //       success: false,
+  //       error: "Internal server error",
+  //     } as ApiResponse)
+  //   }
+  // }
+static async updateFacilityAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  try {
+    const { id } = req.params;
+    const { user, hospitalId, permissions, isActive } = req.body;
+    const { firstName, lastName, email, phone, password } = user || {};
+
+    // Check if admin exists
+    const existingAdmin = await prisma.adminUser.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!existingAdmin) {
+      return res.status(404).json({
+        success: false,
+        error: "Administrator not found",
+      } as ApiResponse);
+    }
+
+    // Check if new email/phone is already in use by another user
+    if (email || phone) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: email || undefined, id: { not: existingAdmin.userId } },
+            { phone: phone || undefined, id: { not: existingAdmin.userId } },
+          ],
+        },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
           success: false,
-          error: "Administrator not found",
-        } as ApiResponse)
+          error: "Email or phone already in use by another user",
+        } as ApiResponse);
       }
+    }
 
-      // Check if new email/phone is already in use by another user
-      if (email || phone) {
-        const existingUser = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { email: email || undefined, id: { not: existingAdmin.userId } },
-              { phone: phone || undefined, id: { not: existingAdmin.userId } },
-            ],
-          },
-        })
+    // Prepare update data
+    const userUpdateData: any = {};
+    if (firstName) userUpdateData.firstName = firstName;
+    if (lastName) userUpdateData.lastName = lastName;
+    if (email) userUpdateData.email = email;
+    if (phone) userUpdateData.phone = phone;
+    if (password) userUpdateData.password = await bcrypt.hash(password, 12);
+    if (isActive !== undefined) userUpdateData.isActive = isActive;
 
-        if (existingUser) {
-          return res.status(400).json({
-            success: false,
-            error: "Email or phone already in use by another user",
-          } as ApiResponse)
-        }
-      }
+    const adminUpdateData: any = {};
+    if (hospitalId) adminUpdateData.hospitalId = hospitalId;
+    if (permissions) adminUpdateData.permissions = permissions;
 
-      // Prepare update data
-      const userUpdateData: any = {}
-      if (firstName) userUpdateData.firstName = firstName
-      if (lastName) userUpdateData.lastName = lastName
-      if (email) userUpdateData.email = email
-      if (phone) userUpdateData.phone = phone
-      if (password) userUpdateData.password = await bcrypt.hash(password, 12)
-      if (isActive !== undefined) userUpdateData.isActive = isActive
-
-      const adminUpdateData: any = {}
-      if (hospitalId) adminUpdateData.hospitalId = hospitalId
-      if (permissions) adminUpdateData.permissions = permissions
-
-      // Update user and admin in transaction
-      const result = await prisma.$transaction(async (tx) => {
-        let updatedUser = existingAdmin.user
+    // Update user and admin in transaction
+    const result = await prisma.$transaction(
+      async (
+        tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">
+      ): Promise<{ user: any; admin: any }> => {
+        let updatedUser = existingAdmin.user;
         if (Object.keys(userUpdateData).length > 0) {
           updatedUser = await tx.user.update({
             where: { id: existingAdmin.userId },
             data: userUpdateData,
-          })
+          });
         }
 
-        let updatedAdmin = existingAdmin
+        let updatedAdmin = existingAdmin;
         if (Object.keys(adminUpdateData).length > 0) {
           updatedAdmin = await tx.adminUser.update({
             where: { id },
             data: adminUpdateData,
             include: { user: true },
-          })
+          });
         } else {
           // If not updated, fetch with user relation
           updatedAdmin = await tx.adminUser.findUnique({
             where: { id },
             include: { user: true },
-          }) as typeof existingAdmin
+          }) as typeof existingAdmin;
         }
 
-        return { user: updatedUser, admin: updatedAdmin }
-      })
+        return { user: updatedUser, admin: updatedAdmin };
+      }
+    );
 
-      // Log the action
-      await prisma.auditLog.create({
-        data: {
-          action: "admin_updated",
-          entityType: "AdminUser",
-          entityId: id,
-          performedBy: req.user!.id,
-          metadata: {
-            updatedFields: {
-              user: userUpdateData,
-              admin: adminUpdateData,
-            },
+    // Log the action
+    await prisma.auditLog.create({
+      data: {
+        action: "admin_updated",
+        entityType: "AdminUser",
+        entityId: id,
+        performedBy: req.user!.id,
+        metadata: {
+          updatedFields: {
+            user: userUpdateData,
+            admin: adminUpdateData,
           },
         },
-      })
+      },
+    });
 
-      return res.json({
-        success: true,
-        data: {
-          message: "Facility administrator updated successfully",
-          adminId: result.admin.id,
-        },
-      } as ApiResponse)
-    } catch (error) {
-      console.error("Update facility admin error:", error)
-      return res.status(500).json({
-        success: false,
-        error: "Internal server error",
-      } as ApiResponse)
-    }
+    return res.json({
+      success: true,
+      data: {
+        message: "Facility administrator updated successfully",
+        adminId: result.admin.id,
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error("Update facility admin error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    } as ApiResponse);
   }
-
+}
 
   // Get national dashboard stats
   static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promise<Response> {
