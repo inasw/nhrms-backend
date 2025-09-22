@@ -1,7 +1,7 @@
 import type { Response } from "express"
 import prisma from "../config/database"
 import type { AuthenticatedRequest, ApiResponse } from "../types"
-import type { PrismaClient, DoctorPatientAssignment,Doctor, Hospital } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 
 export class LabTechController {
   private static async getLabTechId(userId: string): Promise<string> {
@@ -83,7 +83,8 @@ export class LabTechController {
   //     } as ApiResponse)
   //   }
   // }
-  static async searchPatient(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  // Search patient by Fayda ID
+static async searchPatient(req: AuthenticatedRequest, res: Response): Promise<Response> {
   try {
     const { faydaId } = req.query;
 
@@ -125,10 +126,26 @@ export class LabTechController {
       select: { hospitalId: true },
     });
 
+    // Define inline interface for assignment to include doctor and hospital relations
+    interface AssignmentWithRelations {
+      id: string;
+      status: string;
+      patientId: string;
+      doctorId: string;
+      assignedAt: Date;
+      lastModified: Date;
+      doctor: {
+        id: string;
+        hospitalId: string;
+        hospital: {
+          id: string;
+        };
+      };
+    }
+
     const hasAccess = patient.doctorPatientAssignments.some(
-        (assignment: DoctorPatientAssignment & { doctor: Doctor & { hospital: Hospital } }) =>
-          assignment.doctor.hospitalId === labTech?.hospitalId
-      );
+      (assignment: AssignmentWithRelations) => assignment.doctor.hospitalId === labTech?.hospitalId
+    );
 
     if (!hasAccess) {
       return res.status(403).json({
@@ -149,6 +166,7 @@ export class LabTechController {
     } as ApiResponse);
   }
 }
+
 
   // Get lab requests
   static async getLabRequests(req: AuthenticatedRequest, res: Response): Promise<Response> {
