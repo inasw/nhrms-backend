@@ -1,8 +1,7 @@
-// New file: labTechController.ts
-
 import type { Response } from "express"
 import prisma from "../config/database"
 import type { AuthenticatedRequest, ApiResponse } from "../types"
+import type { PrismaClient, DoctorPatientAssignment,Doctor, Hospital } from "@prisma/client";
 
 export class LabTechController {
   private static async getLabTechId(userId: string): Promise<string> {
@@ -19,71 +18,137 @@ export class LabTechController {
   }
 
   // Search patient by Fayda ID
+  // static async searchPatient(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  //   try {
+  //     const { faydaId } = req.query
+
+  //     if (!faydaId) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         error: "Fayda ID required",
+  //       } as ApiResponse)
+  //     }
+
+  //     const patient = await prisma.patient.findUnique({
+  //       where: { faydaId: faydaId as string },
+  //       include: {
+  //         user: {
+  //           select: { firstName: true, lastName: true, email: true, phone: true },
+  //         },
+  //         doctorPatientAssignments: {
+  //           include: {
+  //             doctor: {
+  //               include: {
+  //                 hospital: true,
+  //               },
+  //             },
+  //           },
+  //         },
+  //       },
+  //     })
+
+  //     if (!patient) {
+  //       return res.status(404).json({
+  //         success: false,
+  //         error: "Patient not found",
+  //       } as ApiResponse)
+  //     }
+
+  //     // Verify if the patient has a doctor in the same hospital as the lab tech
+  //     const labTech = await prisma.labTech.findUnique({
+  //       where: { userId: req.user!.id },
+  //       select: { hospitalId: true },
+  //     })
+
+  //     const hasAccess = patient.doctorPatientAssignments.some(
+  //       (assignment) => assignment.doctor.hospitalId === labTech?.hospitalId
+  //     )
+
+  //     if (!hasAccess) {
+  //       return res.status(403).json({
+  //         success: false,
+  //         error: "No access to this patient",
+  //       } as ApiResponse)
+  //     }
+
+  //     return res.json({
+  //       success: true,
+  //       data: patient,
+  //     } as ApiResponse)
+  //   } catch (error) {
+  //     console.error("Search patient error:", error)
+  //     return res.status(500).json({
+  //       success: false,
+  //       error: "Internal server error",
+  //     } as ApiResponse)
+  //   }
+  // }
   static async searchPatient(req: AuthenticatedRequest, res: Response): Promise<Response> {
-    try {
-      const { faydaId } = req.query
+  try {
+    const { faydaId } = req.query;
 
-      if (!faydaId) {
-        return res.status(400).json({
-          success: false,
-          error: "Fayda ID required",
-        } as ApiResponse)
-      }
+    if (!faydaId) {
+      return res.status(400).json({
+        success: false,
+        error: "Fayda ID required",
+      } as ApiResponse);
+    }
 
-      const patient = await prisma.patient.findUnique({
-        where: { faydaId: faydaId as string },
-        include: {
-          user: {
-            select: { firstName: true, lastName: true, email: true, phone: true },
-          },
-          doctorPatientAssignments: {
-            include: {
-              doctor: {
-                include: {
-                  hospital: true,
-                },
+    const patient = await prisma.patient.findUnique({
+      where: { faydaId: faydaId as string },
+      include: {
+        user: {
+          select: { firstName: true, lastName: true, email: true, phone: true },
+        },
+        doctorPatientAssignments: {
+          include: {
+            doctor: {
+              include: {
+                hospital: true,
               },
             },
           },
         },
-      })
+      },
+    });
 
-      if (!patient) {
-        return res.status(404).json({
-          success: false,
-          error: "Patient not found",
-        } as ApiResponse)
-      }
-
-      // Verify if the patient has a doctor in the same hospital as the lab tech
-      const labTech = await prisma.labTech.findUnique({
-        where: { userId: req.user!.id },
-        select: { hospitalId: true },
-      })
-
-      const hasAccess = patient.doctorPatientAssignments.some(
-        (assignment) => assignment.doctor.hospitalId === labTech?.hospitalId
-      )
-
-      if (!hasAccess) {
-        return res.status(403).json({
-          success: false,
-          error: "No access to this patient",
-        } as ApiResponse)
-      }
-
-      return res.json({
-        success: true,
-        data: patient,
-      } as ApiResponse)
-    } catch (error) {
-      console.error("Search patient error:", error)
-      return res.status(500).json({
+    if (!patient) {
+      return res.status(404).json({
         success: false,
-        error: "Internal server error",
-      } as ApiResponse)
+        error: "Patient not found",
+      } as ApiResponse);
     }
+
+    // Verify if the patient has a doctor in the same hospital as the lab tech
+    const labTech = await prisma.labTech.findUnique({
+      where: { userId: req.user!.id },
+      select: { hospitalId: true },
+    });
+
+    const hasAccess = patient.doctorPatientAssignments.some(
+        (assignment: DoctorPatientAssignment & { doctor: Doctor & { hospital: Hospital } }) =>
+          assignment.doctor.hospitalId === labTech?.hospitalId
+      );
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: "No access to this patient",
+      } as ApiResponse);
+    }
+
+    return res.json({
+      success: true,
+      data: patient,
+    } as ApiResponse);
+  } catch (error) {
+    console.error("Search patient error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    } as ApiResponse);
   }
+}
 
   // Get lab requests
   static async getLabRequests(req: AuthenticatedRequest, res: Response): Promise<Response> {
