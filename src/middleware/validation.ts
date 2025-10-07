@@ -1,21 +1,44 @@
+
 import Joi from "joi"
 import type { Request, Response, NextFunction } from "express"
 
+// Define ApiResponse type if not already defined
+interface ApiResponse {
+  success: boolean;
+  error?: string;
+  data?: any;
+}
+
 export const validate = (schema: Joi.ObjectSchema) => {
-  return (req: Request, res: Response, next: NextFunction):  Response | void  => {
-    console.log("Request body:", req.body);
+  return (req: Request, res: Response, next: NextFunction): Response | void => {
+    console.log("Request body:", req.body)
     const { error } = schema.validate(req.body)
 
     if (error) {
       return res.status(400).json({
         success: false,
         error: error.details[0].message,
-      })
+      } as ApiResponse)
     }
 
     next()
   }
 }
+
+// List of valid regions (matching frontend)
+const validRegions = [
+  "addis ababa",
+  "oromia",
+  "amhara",
+  "tigray",
+  "snnp",
+  "somali",
+  "benishangul-gumuz",
+  "gambela",
+  "harari",
+  "afar",
+  "dire dawa",
+]
 
 // Common validation schemas
 export const loginSchema = Joi.object({
@@ -32,10 +55,13 @@ export const registerPatientSchema = Joi.object({
   faydaId: Joi.string().required(),
   dateOfBirth: Joi.date().required(),
   gender: Joi.string().valid("male", "female", "other").required(),
+  region: Joi.string().valid(...validRegions).required(),
+  city: Joi.string().required(),
   bloodType: Joi.string().optional(),
   height: Joi.number().optional(),
   weight: Joi.number().optional(),
-})
+  allowDataSharing: Joi.boolean().required(),
+}).options({ allowUnknown: false });
 
 export const createAppointmentSchema = Joi.object({
   patientId: Joi.string().required(),
@@ -56,4 +82,27 @@ export const createMedicalRecordSchema = Joi.object({
   attachments: Joi.array().items(Joi.string()).optional(),
 })
 
+// Export the vital schema and create a validation middleware for it
+export const vitalSchema = Joi.object({
+  heartRate: Joi.number().optional(),
+  bloodPressure: Joi.string().pattern(/^\d+\/\d+$/).optional(),
+  temperature: Joi.number().optional(),
+  bloodSugar: Joi.number().optional(),
+  oxygenSaturation: Joi.number().optional(),
+  weight: Joi.number().optional(),
+  notes: Joi.string().optional().allow(""),
+  source: Joi.string().valid("manual", "device").optional().default("manual"),
+  deviceId: Joi.string().optional(),
+})
 
+// Create a specific validation middleware for vitals
+export const validateVitals = (req: Request, res: Response, next: NextFunction): Response | void => {
+  const { error } = vitalSchema.validate(req.body)
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.details[0].message,
+    } as ApiResponse)
+  }
+  next()
+}

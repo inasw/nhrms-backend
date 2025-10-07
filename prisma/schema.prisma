@@ -30,9 +30,14 @@ model User {
   labTech    LabTech?
   pharmacist Pharmacist?
   
+  // Invitation flow
+  inviteToken     String? 
+  inviteExpiresAt DateTime?
+  
   // Audit fields
   createdBy  String?  @db.ObjectId
   updatedBy  String?  @db.ObjectId
+
 
   @@map("users")
 }
@@ -129,6 +134,8 @@ model Patient {
   weight      Float?
   allergies   String[]  @default([])
   chronicConditions String[] @default([])
+  region      String 
+  city        String 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

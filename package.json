@@ -16,6 +16,7 @@
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "glob": "^9.3.5",
@@ -28,7 +29,7 @@
     "qrcode": "^1.5.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "twilio": "^4.19.0",
+    "twilio": "^4.23.0",
     "winston": "^3.11.0"
   },
   "devDependencies": {

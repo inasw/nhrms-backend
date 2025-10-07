@@ -185,7 +185,7 @@ export class AuthController {
 // Patient registration
 static async registerPatient(req: Request, res: Response): Promise<Response> {
   try {
-    const { firstName, lastName, email, phone, password, faydaId, dateOfBirth, gender, bloodType, height, weight } =
+    const { firstName, lastName, email, phone, password, faydaId, dateOfBirth, gender, bloodType, height, weight,region,city } =
       req.body;
 
     // Check if user already exists
@@ -231,6 +231,8 @@ static async registerPatient(req: Request, res: Response): Promise<Response> {
             bloodType,
             height,
             weight,
+            region,
+            city
           },
         });
 
@@ -254,85 +256,6 @@ static async registerPatient(req: Request, res: Response): Promise<Response> {
     } as ApiResponse);
   }
 }
-
-  // Doctor registration (by admin)
-  // static async registerDoctor(req: Request, res: Response): Promise<Response> {
-  //   try {
-  //     const { firstName, lastName, email, phone, password, licenseNumber, specialization, hospitalId } = req.body
-
-
-  //     // Check if user already exists
-  //     const existingUser = await prisma.user.findFirst({
-  //       where: {
-  //         OR: [{ email }, { phone }],
-  //       },
-  //     })
-
-  //     if (existingUser) {
-  //       return res.status(400).json({
-  //         success: false,
-  //         error: "User with this email or phone already exists",
-  //       } as ApiResponse)
-  //     }
-
-  //     // Check if license number already exists
-  //     const existingDoctor = await prisma.doctor.findUnique({
-  //       where: { licenseNumber },
-  //     })
-
-  //     if (existingDoctor) {
-  //       return res.status(400).json({
-  //         success: false,
-  //         error: "Doctor with this license number already exists",
-  //       } as ApiResponse)
-  //     }
-
-  //     // Hash password
-  //     const hashedPassword = await bcrypt.hash(password, 12)
-
-  //     // Create user and doctor in transaction
-  //     const result = await prisma.$transaction(async (tx) => {
-  //       const user = await tx.user.create({
-  //         data: {
-  //           nationalId: licenseNumber, // Using license as national ID for doctors
-  //           firstName,
-  //           lastName,
-  //           email,
-  //           phone,
-  //           password: hashedPassword,
-  //           role: "doctor",
-  //         },
-  //       })
-
-  //       const doctor = await tx.doctor.create({
-  //         data: {
-  //           userId: user.id,
-  //           licenseNumber,
-  //           specialization,
-  //           hospitalId,
-  //           // createdBy,
-  //         },
-  //       })
-
-  //       return { user, doctor }
-  //     })
-
-  //     return res.status(201).json({
-  //       success: true,
-  //       data: {
-  //         message: "Doctor registered successfully",
-  //         userId: result.user.id,
-  //         doctorId: result.doctor.id,
-  //       },
-  //     } as ApiResponse)
-  //   } catch (error) {
-  //     console.error("Doctor registration error:", error)
-  //     return res.status(500).json({
-  //       success: false,
-  //       error: "Internal server error",
-  //     } as ApiResponse)
-  //   }
-  // }
  
 // Doctor registration (by admin)
 static async registerDoctor(req: Request, res: Response): Promise<Response> {
@@ -459,4 +382,6 @@ static async registerDoctor(req: Request, res: Response): Promise<Response> {
       message: "Logged out successfully",
     } as ApiResponse)
   }
+
+
 }

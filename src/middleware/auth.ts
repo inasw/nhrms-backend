@@ -167,6 +167,8 @@ export const authenticate = async (
         doctor: { select: { hospitalId: true } },
         adminUser: { select: { hospitalId: true } },
         labTech: { select: { hospitalId: true } },
+        inviteExpiresAt: true,
+        inviteToken: true,
       },
     });
 
