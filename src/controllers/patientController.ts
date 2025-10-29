@@ -987,23 +987,24 @@ export class PatientController {
       // Check for alerts based on vital signs
       await PatientController.checkVitalAlerts(patientId, newVitals);
 
-      // Format response to match Swagger
+      // Format response to match frontend expectations
       const vitalsResponse = {
         id: newVitals[0]?.id || "",
-        heartRate: newVitals.find(v => v.type === "heartRate")?.value,
+        heartRate: newVitals.find(v => v.type === "heartRate")?.value || null,
         bloodPressure: newVitals.find(v => v.type === "bloodPressureSystolic")
           ? `${newVitals.find(v => v.type === "bloodPressureSystolic")?.value}/${newVitals.find(v => v.type === "bloodPressureDiastolic")?.value}`
-          : undefined,
-        temperature: newVitals.find(v => v.type === "temperature")?.value,
-        bloodSugar: newVitals.find(v => v.type === "bloodSugar")?.value,
-        oxygenSaturation: newVitals.find(v => v.type === "oxygenSaturation")?.value,
-        weight: newVitals.find(v => v.type === "weight")?.value,
-        timestamp: newVitals[0]?.recordedAt.toISOString(),
+          : null,
+        temperature: newVitals.find(v => v.type === "temperature")?.value || null,
+        bloodSugar: newVitals.find(v => v.type === "bloodSugar")?.value || null,
+        oxygenSaturation: newVitals.find(v => v.type === "oxygenSaturation")?.value || null,
+        weight: newVitals.find(v => v.type === "weight")?.value || null,
+        timestamp: newVitals[0]?.recordedAt?.toISOString() || new Date().toISOString(),
         source,
       };
 
       return res.status(201).json({
         success: true,
+        data: vitalsResponse,
         vitals: vitalsResponse,
       } as ApiResponse);
     } catch (error) {
@@ -1067,12 +1068,23 @@ export class PatientController {
       const latestVitals = await prisma.vital.findMany({
         where: { patientId },
         orderBy: { recordedAt: "desc" },
-        take: 10, // Adjust based on how many vitals you want to return
+        take: 10,
       });
+
+      // Format vitals for frontend
+      const formattedVitals = {
+        id: latestVitals[0]?.id || "",
+        heartRate: latestVitals.find(v => v.type === "heartRate")?.value || null,
+        bloodPressure: latestVitals.find(v => v.type === "bloodPressureSystolic")
+          ? `${latestVitals.find(v => v.type === "bloodPressureSystolic")?.value}/${latestVitals.find(v => v.type === "bloodPressureDiastolic")?.value}`
+          : null,
+        temperature: latestVitals.find(v => v.type === "temperature")?.value || null,
+        timestamp: latestVitals[0]?.recordedAt?.toISOString() || null,
+      };
 
       return res.json({
         success: true,
-        data: latestVitals,
+        data: formattedVitals,
       } as ApiResponse);
     } catch (error) {
       console.error("Get latest vitals error:", error);
@@ -1102,7 +1114,8 @@ export class PatientController {
         };
       }
 
-      const [appointments, total] = await Promise.all([
+      // Get both appointments and appointment requests
+      const [appointments, appointmentRequests, appointmentTotal, requestTotal] = await Promise.all([
         prisma.appointment.findMany({
           where: whereClause,
           include: {
@@ -1121,12 +1134,79 @@ export class PatientController {
           take: Number(limit),
           orderBy: { scheduledTime: "desc" },
         }),
+        prisma.appointmentRequest.findMany({
+          where: { patientId },
+          include: {
+            hospital: {
+              select: { name: true, address: true, phone: true },
+            },
+          },
+          skip,
+          take: Number(limit),
+          orderBy: { requestedDate: "desc" },
+        }),
         prisma.appointment.count({ where: whereClause }),
+        prisma.appointmentRequest.count({ where: { patientId } }),
       ]);
+
+      const total = appointmentTotal + requestTotal;
+
+      // Format appointments for frontend
+      const formattedAppointments = appointments.map(apt => ({
+        id: apt.id,
+        doctor: `${apt.doctor.user.firstName} ${apt.doctor.user.lastName}`,
+        specialty: apt.doctor.specialization,
+        hospital: apt.hospital.name,
+        date: apt.scheduledTime.toISOString().split('T')[0],
+        time: apt.scheduledTime.toTimeString().slice(0, 5),
+        status: apt.status,
+        duration: `${apt.duration} minutes`,
+        location: apt.hospital.address,
+        contact: apt.hospital.phone,
+        email: `${apt.doctor.user.firstName.toLowerCase()}.${apt.doctor.user.lastName.toLowerCase()}@${apt.hospital.name.toLowerCase().replace(/\s+/g, '')}.com`,
+        notes: apt.notes,
+        reason: apt.reason
+      }));
+
+      // Get doctor info for appointment requests that have doctorId
+      const doctorIds = appointmentRequests.filter(req => req.doctorId).map(req => req.doctorId!);
+      const doctors = doctorIds.length > 0 ? await prisma.doctor.findMany({
+        where: { id: { in: doctorIds } },
+        include: {
+          user: {
+            select: { firstName: true, lastName: true },
+          },
+          hospital: {
+            select: { name: true, address: true, phone: true },
+          },
+        },
+      }) : [];
+
+      // Format appointment requests
+      const formattedRequests = appointmentRequests.map(req => {
+        const doctor = doctors.find(d => d.id === req.doctorId);
+        return {
+          id: req.id,
+          doctor: doctor ? `${doctor.user.firstName} ${doctor.user.lastName}` : "Doctor TBD",
+          specialty: doctor?.specialization || "General",
+          hospital: doctor?.hospital.name || req.hospital?.name || "Hospital TBD",
+          date: req.requestedDate.toISOString().split('T')[0],
+          time: req.preferredTime || "TBD",
+          status: req.status,
+          duration: "30 minutes",
+          location: doctor?.hospital.address || req.hospital?.address || "TBD",
+          contact: doctor?.hospital.phone || req.hospital?.phone || "TBD",
+          email: doctor ? `${doctor.user.firstName.toLowerCase()}.${doctor.user.lastName.toLowerCase()}@${(doctor.hospital.name || req.hospital?.name || 'hospital').toLowerCase().replace(/\s+/g, '')}.com` : "contact@hospital.com",
+          notes: req.notes,
+          reason: req.reason
+        };
+      });
+
+      const allAppointments = [...formattedAppointments, ...formattedRequests];
 
       return res.json({
         success: true,
-        data: appointments,
+        data: allAppointments,
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -1148,32 +1228,40 @@ export class PatientController {
       const patientId = await PatientController.getPatientId(req.user!.id);
       const { doctorId, hospitalId, requestedDate, preferredTime, reason, notes } = req.body;
 
+      if (!requestedDate) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required field: requestedDate",
+        } as ApiResponse);
+      }
+
+      // Create appointment request first (safer approach)
       const appointmentRequest = await prisma.appointmentRequest.create({
         data: {
           patientId,
-          doctorId,
-          hospitalId,
+          doctorId: doctorId || null,
+          hospitalId: hospitalId || null,
           requestedDate: new Date(requestedDate),
-          preferredTime,
-          reason,
-          notes,
-        },
-        include: {
-          hospital: {
-            select: { name: true },
-          },
+          preferredTime: preferredTime || "09:00",
+          reason: reason || "General consultation",
+          notes: notes || "",
+          status: 'pending',
         },
       });
 
       return res.status(201).json({
         success: true,
-        data: appointmentRequest,
+        data: {
+          id: appointmentRequest.id,
+          status: 'pending',
+          message: 'Appointment request submitted successfully'
+        },
       } as ApiResponse);
     } catch (error) {
       console.error("Request appointment error:", error);
       return res.status(500).json({
         success: false,
-        error: "Internal server error",
+        error: "Failed to create appointment request",
       } as ApiResponse);
     }
   }
@@ -1413,7 +1501,100 @@ export class PatientController {
     }
   }
 
-   static async registerDevice(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  static async rescheduleAppointment(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const patientId = await PatientController.getPatientId(req.user!.id);
+      const { id } = req.params;
+      const { date, time, reason } = req.body;
+
+      if (!date || !time) {
+        return res.status(400).json({
+          success: false,
+          error: "Date and time are required",
+        } as ApiResponse);
+      }
+
+      // Verify appointment belongs to patient
+      const appointment = await prisma.appointment.findFirst({
+        where: { id, patientId },
+      });
+
+      if (!appointment) {
+        return res.status(404).json({
+          success: false,
+          error: "Appointment not found",
+        } as ApiResponse);
+      }
+
+      // Create reschedule request
+      const rescheduleRequest = await prisma.appointmentRequest.create({
+        data: {
+          patientId,
+          doctorId: appointment.doctorId,
+          hospitalId: appointment.hospitalId,
+          requestedDate: new Date(`${date}T${time}`),
+          reason: reason || "Reschedule request",
+          notes: `Reschedule from ${appointment.scheduledTime}`,
+        },
+      });
+
+      return res.json({
+        success: true,
+        message: "Reschedule request submitted successfully",
+        data: rescheduleRequest,
+      } as ApiResponse);
+    } catch (error) {
+      console.error("Reschedule appointment error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse);
+    }
+  }
+
+  static async cancelAppointment(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const patientId = await PatientController.getPatientId(req.user!.id);
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({
+          success: false,
+          error: "Cancellation reason is required",
+        } as ApiResponse);
+      }
+
+      // Verify appointment belongs to patient and update status
+      const appointment = await prisma.appointment.updateMany({
+        where: { id, patientId },
+        data: {
+          status: "cancelled",
+          notes: `Cancelled by patient. Reason: ${reason}`,
+        },
+      });
+
+      if (appointment.count === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Appointment not found",
+        } as ApiResponse);
+      }
+
+      return res.json({
+        success: true,
+        message: "Appointment cancelled successfully",
+      } as ApiResponse);
+    } catch (error) {
+      console.error("Cancel appointment error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse);
+    }
+  }
+
+  static async registerDevice(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
       const patientId = await PatientController.getPatientId(req.user!.id);
       const { deviceId, deviceType, manufacturer, model } = req.body;
@@ -1451,6 +1632,106 @@ export class PatientController {
       } as ApiResponse);
     } catch (error) {
       console.error("Register device error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse);
+    }
+  }
+
+  static async cancelAppointmentRequest(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const patientId = await PatientController.getPatientId(req.user!.id);
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({
+          success: false,
+          error: "Cancellation reason is required",
+        } as ApiResponse);
+      }
+
+      // Update appointment request status to cancelled
+      const appointmentRequest = await prisma.appointmentRequest.updateMany({
+        where: { id, patientId },
+        data: {
+          status: "cancelled",
+          notes: `Cancelled by patient. Reason: ${reason}`,
+        },
+      });
+
+      if (appointmentRequest.count === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Appointment request not found",
+        } as ApiResponse);
+      }
+
+      return res.json({
+        success: true,
+        message: "Appointment request cancelled successfully",
+      } as ApiResponse);
+    } catch (error) {
+      console.error("Cancel appointment request error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse);
+    }
+  }
+
+  static async getHospitals(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { page = 1, limit = 20, region, name } = req.query;
+
+      const skip = (Number(page) - 1) * Number(limit);
+      const whereClause: any = {};
+
+      if (region) {
+        whereClause.region = {
+          contains: region as string,
+          mode: "insensitive",
+        };
+      }
+
+      if (name) {
+        whereClause.name = {
+          contains: name as string,
+          mode: "insensitive",
+        };
+      }
+
+      const [hospitals, total] = await Promise.all([
+        prisma.hospital.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            region: true,
+            email: true,
+          },
+          skip,
+          take: Number(limit),
+          orderBy: { name: "asc" },
+        }),
+        prisma.hospital.count({ where: whereClause }),
+      ]);
+
+      return res.json({
+        success: true,
+        data: hospitals,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          totalPages: Math.ceil(total / Number(limit)),
+        },
+      } as ApiResponse);
+    } catch (error) {
+      console.error("Get hospitals error:", error);
       return res.status(500).json({
         success: false,
         error: "Internal server error",

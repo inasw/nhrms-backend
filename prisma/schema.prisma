@@ -29,6 +29,7 @@ model User {
   adminUser  AdminUser?
   labTech    LabTech?
   pharmacist Pharmacist?
+  generatedReports Report[]
   
   // Invitation flow
   inviteToken     String? 
@@ -390,17 +391,19 @@ model HealthAlert {
 }
 
 model AppointmentRequest {
-  id             String                    @id @default(auto()) @map("_id") @db.ObjectId
-  patientId      String                    @db.ObjectId
-  doctorId       String?                   @db.ObjectId
-  hospitalId     String?                   @db.ObjectId
-  requestedDate  DateTime
-  preferredTime  String?
-  reason         String
-  status         AppointmentRequestStatus  @default(pending)
-  notes          String?
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
+  id                    String                    @id @default(auto()) @map("_id") @db.ObjectId
+  patientId             String                    @db.ObjectId
+  doctorId              String?                   @db.ObjectId
+  hospitalId            String?                   @db.ObjectId
+  requestedDate         DateTime
+  preferredTime         String?
+  reason                String
+  status                AppointmentRequestStatus  @default(pending)
+  notes                 String?
+  vitals                Json?                     // Patient vitals at time of request
+  originalAppointmentId String?                   @db.ObjectId
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
 
   // Relations
   patient  Patient   @relation(fields: [patientId], references: [id])
@@ -471,6 +474,7 @@ model Report {
 
   // Relations
   hospital Hospital @relation(fields: [hospitalId], references: [id])
+  generatedByUser User @relation(fields: [generatedBy], references: [id])
 
   @@map("reports")
 }

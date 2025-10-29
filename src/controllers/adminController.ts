@@ -1183,6 +1183,242 @@ static async updateLabTech(req: AuthenticatedRequest, res: Response): Promise<Re
     } as ApiResponse);
   }
 }
+
+  // Get reports
+  static async getReports(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const hospitalId = req.user!.hospitalId
+      const { page = 1, limit = 10, type, status, search } = req.query
+
+      const skip = (Number(page) - 1) * Number(limit)
+      const whereClause: any = { hospitalId }
+
+      if (type) {
+        whereClause.type = type
+      }
+
+      if (status) {
+        whereClause.status = status
+      }
+
+      if (search) {
+        whereClause.OR = [
+          {
+            title: {
+              contains: search as string,
+              mode: "insensitive",
+            },
+          },
+          {
+            type: {
+              contains: search as string,
+              mode: "insensitive",
+            },
+          },
+        ]
+      }
+
+      const [reports, total] = await Promise.all([
+        prisma.report.findMany({
+          where: whereClause,
+          include: {
+            generatedByUser: {
+              select: { firstName: true, lastName: true },
+            },
+          },
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.report.count({ where: whereClause }),
+      ])
+
+      return res.json({
+        success: true,
+        data: reports,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          totalPages: Math.ceil(total / Number(limit)),
+        },
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Get reports error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
+
+  // Get report statistics
+  static async getReportStats(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const hospitalId = req.user!.hospitalId
+
+      const [totalReports, completedReports, pendingReports, failedReports] = await Promise.all([
+        prisma.report.count({ where: { hospitalId } }),
+        prisma.report.count({ where: { hospitalId, status: "completed" } }),
+        prisma.report.count({ where: { hospitalId, status: "pending" } }),
+        prisma.report.count({ where: { hospitalId, status: "failed" } }),
+      ])
+
+      const thisMonth = new Date()
+      thisMonth.setDate(1)
+      thisMonth.setHours(0, 0, 0, 0)
+
+      const reportsThisMonth = await prisma.report.count({
+        where: {
+          hospitalId,
+          createdAt: {
+            gte: thisMonth,
+          },
+        },
+      })
+
+      const automatedReports = await prisma.report.count({
+        where: {
+          hospitalId,
+          title: {
+            contains: "Auto",
+            mode: "insensitive",
+          },
+        },
+      })
+
+      const successRate = totalReports > 0 ? Math.round((completedReports / totalReports) * 100) : 0
+
+      return res.json({
+        success: true,
+        data: {
+          totalReports,
+          completedReports,
+          pendingReports,
+          failedReports,
+          reportsThisMonth,
+          automatedReports,
+          successRate,
+        },
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Get report stats error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
+
+  // Get dashboard statistics for admin
+  static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const hospitalId = req.user!.hospitalId
+
+      if (!hospitalId) {
+        return res.status(400).json({
+          success: false,
+          error: "Hospital ID not found",
+        } as ApiResponse)
+      }
+
+      const [
+        totalDoctors,
+        activeDoctors,
+        totalLabTechs,
+        activeLabTechs,
+        totalAppointments,
+        todayAppointments,
+        upcomingAppointments,
+        hospitalInfo
+      ] = await Promise.all([
+        prisma.doctor.count({ where: { hospitalId } }),
+        prisma.doctor.count({ where: { hospitalId, isActive: true } }),
+        prisma.labTech.count({ where: { hospitalId } }),
+        prisma.labTech.count({ where: { hospitalId, isActive: true } }),
+        prisma.appointment.count({ where: { hospitalId } }),
+        prisma.appointment.count({
+          where: {
+            hospitalId,
+            scheduledTime: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            },
+          },
+        }),
+        prisma.appointment.findMany({
+          where: {
+            hospitalId,
+            scheduledTime: {
+              gte: new Date(),
+            },
+          },
+          include: {
+            patient: {
+              include: {
+                user: {
+                  select: { firstName: true, lastName: true },
+                },
+              },
+            },
+            doctor: {
+              include: {
+                user: {
+                  select: { firstName: true, lastName: true },
+                },
+              },
+            },
+          },
+          take: 5,
+          orderBy: { scheduledTime: "asc" },
+        }),
+        prisma.hospital.findUnique({
+          where: { id: hospitalId },
+          select: { name: true, address: true, phone: true, email: true },
+        }),
+      ])
+
+      const totalStaff = totalDoctors + totalLabTechs
+      const activeStaff = activeDoctors + activeLabTechs
+
+      // Format upcoming appointments
+      const formattedAppointments = upcomingAppointments.map(apt => ({
+        time: apt.scheduledTime.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        patient: `${apt.patient.user.firstName} ${apt.patient.user.lastName}`,
+        doctor: `Dr. ${apt.doctor.user.firstName} ${apt.doctor.user.lastName}`,
+        type: apt.type,
+        status: apt.status,
+      }))
+
+      return res.json({
+        success: true,
+        data: {
+          hospital: hospitalInfo,
+          stats: {
+            totalStaff,
+            activeStaff,
+            totalDoctors,
+            activeDoctors,
+            totalLabTechs,
+            activeLabTechs,
+            totalAppointments,
+            todayAppointments,
+          },
+          upcomingAppointments: formattedAppointments,
+        },
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Get dashboard stats error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
 }
 
 

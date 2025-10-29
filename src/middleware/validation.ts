@@ -82,7 +82,75 @@ export const createMedicalRecordSchema = Joi.object({
   attachments: Joi.array().items(Joi.string()).optional(),
 })
 
-// Export the vital schema and create a validation middleware for it
+export const createPrescriptionSchema = Joi.object({
+  patientId: Joi.string().required(),
+  medications: Joi.array().items(Joi.object({
+    drug: Joi.string().required(),
+    dosage: Joi.string().required(),
+    frequency: Joi.string().required(),
+    duration: Joi.string().required(),
+    instructions: Joi.string().optional()
+  })).required(),
+  instructions: Joi.string().optional(),
+})
+
+export const createLabRequestSchema = Joi.object({
+  patientId: Joi.string().required(),
+  testType: Joi.string().required(),
+  instructions: Joi.string().optional(),
+  labTechId: Joi.string().optional(),
+  priority: Joi.string().valid("routine", "urgent", "stat").default("routine")
+})
+
+export const approveAppointmentSchema = Joi.object({
+  scheduledTime: Joi.date().optional(),
+  duration: Joi.number().default(30),
+  notes: Joi.string().optional()
+})
+
+export const rejectAppointmentSchema = Joi.object({
+  reason: Joi.string().required()
+})
+
+export const dispensePrescriptionSchema = Joi.object({
+  notes: Joi.string().optional()
+})
+
+export const cancelPrescriptionSchema = Joi.object({
+  reason: Joi.string().required()
+})
+
+export const updatePharmacyProfileSchema = Joi.object({
+  firstName: Joi.string().optional(),
+  lastName: Joi.string().optional(),
+  phone: Joi.string().optional(),
+  email: Joi.string().email().optional()
+})
+
+export const createPharmacistSchema = Joi.object({
+  user: Joi.object({
+    firstName: Joi.string().required(),
+    lastName: Joi.string().required(),
+    email: Joi.string().email().required(),
+    phone: Joi.string().required(),
+    password: Joi.string().min(8).required(),
+    nationalId: Joi.string().required()
+  }).required(),
+  licenseNumber: Joi.string().required(),
+  pharmacyId: Joi.string().required()
+})
+
+export const createPharmacySchema = Joi.object({
+  name: Joi.string().required(),
+  code: Joi.string().required(),
+  address: Joi.string().required(),
+  phone: Joi.string().required(),
+  email: Joi.string().email().required(),
+  region: Joi.string().valid(...validRegions).required(),
+  type: Joi.string().valid("public", "private").required()
+})
+
+// Export additional schemas
 export const vitalSchema = Joi.object({
   heartRate: Joi.number().optional(),
   bloodPressure: Joi.string().pattern(/^\d+\/\d+$/).optional(),

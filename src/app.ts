@@ -12,6 +12,7 @@ import patientRoutes from "./routes/patient"
 import adminRoutes from "./routes/admin"
 import superAdminRoutes from "./routes/superAdmin"
 import labTechRoutes from "./routes/labTech"
+import pharmacyRoutes from "./routes/pharmacy"
 
 const app = express()
 
@@ -46,6 +47,7 @@ app.use("/api/patient", patientRoutes)
 app.use("/api/admin", adminRoutes)
 app.use("/api/superadmin", superAdminRoutes)
 app.use("/api/labtech", labTechRoutes)
+app.use("/api/pharmacy", pharmacyRoutes)
 
 
 app.use("*", (req, res) => {

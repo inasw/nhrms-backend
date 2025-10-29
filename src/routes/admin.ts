@@ -442,6 +442,65 @@ router.post("/reports/generate", AdminController.generateReport)
 
 /**
  * @swagger
+ * /api/admin/reports:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get reports
+ *     description: Retrieves a list of generated reports
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Number of items per page
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: Report type filter
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Report status filter
+ *     responses:
+ *       200:
+ *         description: List of reports
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (not a hospital admin)
+ */
+router.get("/reports", AdminController.getReports)
+
+/**
+ * @swagger
+ * /api/admin/reports/stats:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get report statistics
+ *     description: Retrieves statistics about report generation
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Report statistics
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (not a hospital admin)
+ */
+router.get("/reports/stats", AdminController.getReportStats)
+
+/**
+ * @swagger
  * /api/admin/settings:
  *   get:
  *     tags: [Admin]
@@ -522,5 +581,40 @@ router.get("/settings", AdminController.getSettings)
  *         description: Forbidden (not a hospital admin)
  */
 router.put("/settings", AdminController.updateSettings)
+
+/**
+ * @swagger
+ * /api/admin/dashboard/stats:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get dashboard statistics
+ *     description: Retrieves statistics for the admin dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     hospital:
+ *                       type: object
+ *                     stats:
+ *                       type: object
+ *                     upcomingAppointments:
+ *                       type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (not a hospital admin)
+ */
+router.get("/dashboard/stats", AdminController.getDashboardStats)
 
 export default router

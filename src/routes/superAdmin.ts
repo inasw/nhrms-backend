@@ -1,40 +1,8 @@
-// import { Router } from "express"
-// import { SuperAdminController } from "../controllers/superAdminController"
-// import { authenticate, requireSuperAdmin } from "../middleware/auth"
-// import { strictLimiter } from "../middleware/rateLimiter"
-
-// const router = Router()
-
-// // Apply authentication and super admin role check to all routes
-// router.use(authenticate, requireSuperAdmin)
-
-// // Apply strict rate limiting to sensitive operations
-// router.use("/facilities", strictLimiter)
-// router.use("/admins", strictLimiter)
-
-// // Facility management
-// router.get("/facilities", SuperAdminController.getFacilities)
-// router.post("/facilities", SuperAdminController.registerFacility)
-// router.get("/facilities/:id", SuperAdminController.getFacilityDetails)
-// router.put("/facilities/:id", SuperAdminController.updateFacility)
-// // router.patch("/facilities/:id/status", SuperAdminController.changeFacilityStatus)
-
-// // Administrator management
-// router.get("/admins", SuperAdminController.getFacilityAdmins)
-// router.post("/admins", SuperAdminController.createFacilityAdmin)
-// router.put("/admins/:id",SuperAdminController.updateFacilityAdmin)
-
-// // Dashboard and reporting
-// router.get("/dashboard/stats", SuperAdminController.getDashboardStats)
-// router.get("/audit-logs", SuperAdminController.getAuditLogs)
-
-// export default router
-
-
 import { Router } from "express"
 import { SuperAdminController } from "../controllers/superAdminController"
 import { authenticate, requireSuperAdmin } from "../middleware/auth"
 import { strictLimiter } from "../middleware/rateLimiter"
+import { validate, createPharmacistSchema, createPharmacySchema } from "../middleware/validation"
 
 const router = Router()
 
@@ -328,6 +296,11 @@ router.get("/admins", SuperAdminController.getFacilityAdmins)
  */
 router.post("/admins", SuperAdminController.createFacilityAdmin)
 
+// Pharmacy management
+router.get("/pharmacies", SuperAdminController.getPharmacies)
+router.post("/pharmacies", validate(createPharmacySchema), SuperAdminController.createPharmacy)
+router.post("/pharmacists", validate(createPharmacistSchema), SuperAdminController.createPharmacist)
+
 /**
  * @swagger
  * /api/superadmin/admins/{id}:
@@ -445,5 +418,103 @@ router.get("/dashboard/stats", SuperAdminController.getDashboardStats)
  *         description: Forbidden (not a super admin)
  */
 router.get("/audit-logs", SuperAdminController.getAuditLogs)
+
+/**
+ * @swagger
+ * /api/superadmin/patients:
+ *   get:
+ *     tags: [SuperAdmin]
+ *     summary: Get all patients
+ *     description: Retrieves a list of all patients with pagination and filtering
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of items per page
+ *       - in: query
+ *         name: region
+ *         schema:
+ *           type: string
+ *         description: Filter by region
+ *       - in: query
+ *         name: gender
+ *         schema:
+ *           type: string
+ *           enum: [male, female, other]
+ *         description: Filter by gender
+ *     responses:
+ *       200:
+ *         description: List of patients
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       faydaId:
+ *                         type: string
+ *                       user:
+ *                         type: object
+ *                         properties:
+ *                           firstName:
+ *                             type: string
+ *                           lastName:
+ *                             type: string
+ *                           email:
+ *                             type: string
+ *                           phone:
+ *                             type: string
+ *                       region:
+ *                         type: string
+ *                       city:
+ *                         type: string
+ *                       gender:
+ *                         type: string
+ *                       dateOfBirth:
+ *                         type: string
+ *                         format: date-time
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (not a super admin)
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/patients", SuperAdminController.getPatients)
 
 export default router

@@ -167,6 +167,7 @@ export const authenticate = async (
         doctor: { select: { hospitalId: true } },
         adminUser: { select: { hospitalId: true } },
         labTech: { select: { hospitalId: true } },
+        pharmacist: { select: { pharmacyId: true } },
         inviteExpiresAt: true,
         inviteToken: true,
       },
@@ -185,6 +186,7 @@ export const authenticate = async (
         user.doctor?.hospitalId ||
         user.adminUser?.hospitalId ||
         user.labTech?.hospitalId,
+      pharmacyId: user.pharmacist?.pharmacyId,
     };
 
     return next();
@@ -219,6 +221,8 @@ export const authorize = (roles: UserRole[]) => {
 // Role-specific middleware
 export const requireDoctor = authorize(['doctor']);
 export const requirePatient = authorize(['patient']);
+export const requirePharmacist = authorize(['pharmacist']);
+export const requireLabTech = authorize(['lab_tech']);
 export const requireHospitalAdmin = authorize(['hospital_admin']);
 export const requireSuperAdmin = authorize(['super_admin', 'moh_admin']);
 export const requireAdmin = authorize(['hospital_admin', 'super_admin', 'moh_admin']);

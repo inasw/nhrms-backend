@@ -380,4 +380,170 @@ router.get("/doctors", PatientController.searchDoctors)
  */
 router.get("/alerts", PatientController.getHealthAlerts)
 
+/**
+ * @swagger
+ * /api/patient/hospitals:
+ *   get:
+ *     tags: [Patient]
+ *     summary: Get available hospitals
+ *     description: Retrieves a list of hospitals where patients can book appointments
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of hospitals
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     example: "hosp123"
+ *                   name:
+ *                     type: string
+ *                     example: "City Hospital"
+ *                   address:
+ *                     type: string
+ *                     example: "123 Health St, City"
+ *                   phone:
+ *                     type: string
+ *                     example: "+1234567890"
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (not a patient)
+ */
+router.get("/hospitals", PatientController.getHospitals)
+
+/**
+ * @swagger
+ * /api/patient/appointments/{id}/reschedule:
+ *   put:
+ *     tags: [Patient]
+ *     summary: Reschedule appointment
+ *     description: Request to reschedule an existing appointment
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Appointment ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - date
+ *               - time
+ *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 example: "2025-09-15"
+ *               time:
+ *                 type: string
+ *                 example: "14:30"
+ *               reason:
+ *                 type: string
+ *                 example: "Schedule conflict"
+ *     responses:
+ *       200:
+ *         description: Reschedule request submitted
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Appointment not found
+ */
+router.put("/appointments/:id/reschedule", PatientController.rescheduleAppointment)
+
+/**
+ * @swagger
+ * /api/patient/appointments/{id}/cancel:
+ *   put:
+ *     tags: [Patient]
+ *     summary: Cancel appointment
+ *     description: Cancel an existing appointment
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Appointment ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: "Personal emergency"
+ *     responses:
+ *       200:
+ *         description: Appointment cancelled successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Appointment not found
+ */
+router.put("/appointments/:id/cancel", PatientController.cancelAppointment)
+
+/**
+ * @swagger
+ * /api/patient/appointment-requests/{id}/cancel:
+ *   put:
+ *     tags: [Patient]
+ *     summary: Cancel appointment request
+ *     description: Cancel a pending appointment request
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Appointment request ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: "Personal emergency"
+ *     responses:
+ *       200:
+ *         description: Appointment request cancelled successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Appointment request not found
+ */
+router.put("/appointment-requests/:id/cancel", PatientController.cancelAppointmentRequest)
+
 export default router

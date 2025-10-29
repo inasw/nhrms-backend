@@ -19,6 +19,7 @@ export class AuthController {
           patient: true,
           adminUser: { include: { hospital: true } },
           labTech: { include: { hospital: true } },
+          pharmacist: { include: { pharmacy: true } },
         },
       })
 
@@ -48,6 +49,7 @@ export class AuthController {
         userId: user.id,
         role: user.role,
         hospitalId: user.doctor?.hospitalId || user.adminUser?.hospitalId,
+        pharmacyId: user.pharmacist?.pharmacyId,
       }
 
       const accessToken = generateAccessToken(tokenPayload)
@@ -94,6 +96,14 @@ export class AuthController {
           id: user.labTech.id,
           licenseNumber: user.labTech.licenseNumber,
           hospital: user.labTech.hospital,
+        }
+      }
+
+      if (user.pharmacist) {
+        userData.pharmacist = {
+          id: user.pharmacist.id,
+          licenseNumber: user.pharmacist.licenseNumber,
+          pharmacy: user.pharmacist.pharmacy,
         }
       }
 
@@ -383,5 +393,83 @@ static async registerDoctor(req: Request, res: Response): Promise<Response> {
     } as ApiResponse)
   }
 
+  // Pharmacist registration (by admin)
+  static async registerPharmacist(req: Request, res: Response): Promise<Response> {
+    try {
+      const { firstName, lastName, email, phone, password, licenseNumber, pharmacyId } = req.body
 
+      // Check if user already exists
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ email }, { phone }],
+        },
+      })
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          error: "User with this email or phone already exists",
+        } as ApiResponse)
+      }
+
+      // Check if license number already exists
+      const existingPharmacist = await prisma.pharmacist.findUnique({
+        where: { licenseNumber },
+      })
+
+      if (existingPharmacist) {
+        return res.status(400).json({
+          success: false,
+          error: "Pharmacist with this license number already exists",
+        } as ApiResponse)
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 12)
+
+      // Create user and pharmacist in transaction
+      const result = await prisma.$transaction(
+        async (
+          tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">
+        ): Promise<{ user: any; pharmacist: any }> => {
+          const user = await tx.user.create({
+            data: {
+              nationalId: licenseNumber,
+              firstName,
+              lastName,
+              email,
+              phone,
+              password: hashedPassword,
+              role: "pharmacist",
+            },
+          })
+
+          const pharmacist = await tx.pharmacist.create({
+            data: {
+              userId: user.id,
+              licenseNumber,
+              pharmacyId,
+            },
+          })
+
+          return { user, pharmacist }
+        }
+      )
+
+      return res.status(201).json({
+        success: true,
+        data: {
+          message: "Pharmacist registered successfully",
+          userId: result.user.id,
+          pharmacistId: result.pharmacist.id,
+        },
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Pharmacist registration error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
 }

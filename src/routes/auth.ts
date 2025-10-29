@@ -2,6 +2,7 @@ import { Router } from "express"
 import { AuthController } from "../controllers/authController"
 import { validate, loginSchema, registerPatientSchema } from "../middleware/validation"
 import { authLimiter } from "../middleware/rateLimiter"
+import { authenticate, requireSuperAdmin } from "../middleware/auth"
 
 const router = Router()
 
@@ -163,7 +164,8 @@ router.post("/register/patient", validate(registerPatientSchema), AuthController
  *       400:
  *         description: Invalid input data
  */
-router.post("/register/doctor", AuthController.registerDoctor) // Admin only
+router.post("/register/doctor", authenticate, requireSuperAdmin, AuthController.registerDoctor)
+router.post("/register/pharmacist", authenticate, requireSuperAdmin, AuthController.registerPharmacist)
 
 /**
  * @swagger

@@ -395,132 +395,7 @@ export class SuperAdminController {
   }
 }
 
-    // Update facility administrator
-// static async updateFacilityAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
-//   try {
-//     const { id } = req.params;
-//     const { user, hospitalId, permissions, isActive } = req.body;
-//     const { firstName, lastName, email, phone, password } = user || {};
-
-//     // Check if admin exists
-//     const existingAdmin = await prisma.adminUser.findUnique({
-//       where: { id },
-//       include: { user: true },
-//     });
-
-//     if (!existingAdmin) {
-//       return res.status(404).json({
-//         success: false,
-//         error: "Administrator not found",
-//       } as ApiResponse);
-//     }
-
-//     const existingHospital = await prisma.hospital.findUnique({
-//       where: { id: hospitalId },
-//     });
-
-//     if (!existingHospital) {
-//       return res.status(400).json({
-//         success: false,
-//         error: "Invalid hospitalId: Hospital not found",
-//       } as ApiResponse);
-//     }
-
-//     // Check if new email/phone is already in use by another user
-//     if (email || phone) {
-//       const existingUser = await prisma.user.findFirst({
-//         where: {
-//           OR: [
-//             { email: email || undefined, id: { not: existingAdmin.userId } },
-//             { phone: phone || undefined, id: { not: existingAdmin.userId } },
-//           ],
-//         },
-//       });
-
-//       if (existingUser) {
-//         return res.status(400).json({
-//           success: false,
-//           error: "Email or phone already in use by another user",
-//         } as ApiResponse);
-//       }
-//     }
-
-//     // Prepare update data
-//     const userUpdateData: any = {};
-//     if (firstName) userUpdateData.firstName = firstName;
-//     if (lastName) userUpdateData.lastName = lastName;
-//     if (email) userUpdateData.email = email;
-//     if (phone) userUpdateData.phone = phone;
-//     if (password) userUpdateData.password = await bcrypt.hash(password, 12);
-//     if (isActive !== undefined) userUpdateData.isActive = isActive;
-
-//     const adminUpdateData: any = {};
-//     if (hospitalId) adminUpdateData.hospitalId = hospitalId;
-//     if (permissions) adminUpdateData.permissions = permissions;
-
-//     // Update user and admin in transaction
-//     const result = await prisma.$transaction(
-//       async (
-//         tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">
-//       ): Promise<{ user: any; admin: any }> => {
-//         let updatedUser = existingAdmin.user;
-//         if (Object.keys(userUpdateData).length > 0) {
-//           updatedUser = await tx.user.update({
-//             where: { id: existingAdmin.userId },
-//             data: userUpdateData,
-//           });
-//         }
-
-//         let updatedAdmin = existingAdmin;
-//         if (Object.keys(adminUpdateData).length > 0) {
-//           updatedAdmin = await tx.adminUser.update({
-//             where: { id },
-//             data: adminUpdateData,
-//             include: { user: true },
-//           });
-//         } else {
-//           // If not updated, fetch with user relation
-//           updatedAdmin = await tx.adminUser.findUnique({
-//             where: { id },
-//             include: { user: true },
-//           }) as typeof existingAdmin;
-//         }
-
-//         return { user: updatedUser, admin: updatedAdmin };
-//       }
-//     );
-
-//     // Log the action
-//     await prisma.auditLog.create({
-//       data: {
-//         action: "admin_updated",
-//         entityType: "AdminUser",
-//         entityId: id,
-//         performedBy: req.user!.id,
-//         metadata: {
-//           updatedFields: {
-//             user: userUpdateData,
-//             admin: adminUpdateData,
-//           },
-//         },
-//       },
-//     });
-
-//     return res.json({
-//       success: true,
-//       data: {
-//         message: "Facility administrator updated successfully",
-//         adminId: result.admin.id,
-//       },
-//     } as ApiResponse);
-//   } catch (error) {
-//     console.error("Update facility admin error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       error: "Internal server error",
-//     } as ApiResponse);
-//   }
-// }
+  // Update facility administrator
 static async updateFacilityAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
   try {
     const { id } = req.params;
@@ -656,15 +531,153 @@ static async updateFacilityAdmin(req: AuthenticatedRequest, res: Response): Prom
   }
 }
 
+// Get all patients
+static async getPatients(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  try {
+    const { page = 1, limit = 10, gender } = req.query
+
+    const skip = (Number(page) - 1) * Number(limit)
+
+    const whereClause: any = {}
+    
+    if (gender && ['male', 'female', 'other'].includes(gender as string)) {
+      whereClause.gender = gender
+    }
+
+    const [patients, total] = await Promise.all([
+      prisma.patient.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          faydaId: true,
+          gender: true,
+          dateOfBirth: true,
+          createdAt: true,
+          // Skip region and city fields for now
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              isActive: true,
+            },
+          },
+        },
+        skip,
+        take: Number(limit),
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.patient.count({ where: whereClause }),
+    ])
+
+    return res.json({
+      success: true,
+      data: patients,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    } as ApiResponse)
+  } catch (error) {
+    console.error("Get patients error:", error)
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    } as ApiResponse)
+  }
+}
+
 // Get national dashboard stats
+// static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promise<Response> {
+//   try {
+//     const [
+//       totalFacilities, 
+//       activeFacilities, 
+//       totalDoctors, 
+//       totalLabTechs,     
+//       totalPharmacists,  
+//       totalPatients, 
+//       totalAppointments, 
+//       totalAdmins,
+//       recentActivity
+//     ] = await Promise.all([
+//       prisma.hospital.count(),
+//       prisma.hospital.count({ where: { status: "active" } }),
+//       // Count active doctors
+//       prisma.doctor.count({ where: { isActive: true } }),
+//       // Count active lab technicians
+//       prisma.labTech.count({ where: { isActive: true } }),
+//       // Count active pharmacists
+//       prisma.pharmacist.count({ where: { isActive: true } }),
+//       prisma.patient.count(),
+//       prisma.appointment.count({
+//         where: {
+//           scheduledTime: {
+//             gte: new Date(new Date().setHours(0, 0, 0, 0)),
+//           },
+//         },
+//       }),
+//       prisma.adminUser.count({
+//         where: { role: "hospital_admin" }
+//       }),
+//       prisma.auditLog.findMany({
+//         take: 10,
+//         orderBy: { timestamp: "desc" },
+//         select: {
+//           action: true,
+//           entityType: true,
+//           timestamp: true,
+//           metadata: true,
+//         },
+//       }),
+//     ])
+
+//     // Calculate total medical staff (doctors + lab techs + pharmacists)
+//     const totalMedicalStaff = totalDoctors + totalLabTechs + totalPharmacists
+
+//     return res.json({
+//       success: true,
+//       data: {
+//         facilities: {
+//           total: totalFacilities,
+//           active: activeFacilities,
+//           inactive: totalFacilities - activeFacilities,
+//         },
+//         staff: {
+//           doctors: totalDoctors,
+//           labTechnicians: totalLabTechs,
+//           pharmacists: totalPharmacists,
+//           total: totalMedicalStaff,
+//         },
+//         patients: {
+//           total: totalPatients,
+//         },
+//         appointments: {
+//           today: totalAppointments,
+//         },
+//         totalAdmins: totalAdmins,
+//         recentActivity,
+//       },
+//     } as ApiResponse)
+//   } catch (error) {
+//     console.error("Get dashboard stats error:", error)
+//     return res.status(500).json({
+//       success: false,
+//       error: "Internal server error",
+//     } as ApiResponse)
+//   }
+// }
 static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promise<Response> {
   try {
     const [
       totalFacilities, 
       activeFacilities, 
       totalDoctors, 
-      totalLabTechs,     // Count lab technicians
-      totalPharmacists,  // Count pharmacists
+      totalLabTechs,
+      totalPharmacists, 
       totalPatients, 
       totalAppointments, 
       totalAdmins,
@@ -672,11 +685,8 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
     ] = await Promise.all([
       prisma.hospital.count(),
       prisma.hospital.count({ where: { status: "active" } }),
-      // Count active doctors
       prisma.doctor.count({ where: { isActive: true } }),
-      // Count active lab technicians
       prisma.labTech.count({ where: { isActive: true } }),
-      // Count active pharmacists
       prisma.pharmacist.count({ where: { isActive: true } }),
       prisma.patient.count(),
       prisma.appointment.count({
@@ -701,7 +711,6 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
       }),
     ])
 
-    // Calculate total medical staff (doctors + lab techs + pharmacists)
     const totalMedicalStaff = totalDoctors + totalLabTechs + totalPharmacists
 
     return res.json({
@@ -719,7 +728,7 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
           total: totalMedicalStaff,
         },
         patients: {
-          total: totalPatients,
+          total: totalPatients, // Now using actual patient count
         },
         appointments: {
           today: totalAppointments,
@@ -736,6 +745,177 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
     } as ApiResponse)
   }
 }
+
+  // Create pharmacy
+  static async createPharmacy(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { name, code, address, phone, email, region, type } = req.body
+
+      const existingPharmacy = await prisma.pharmacy.findUnique({
+        where: { code },
+      })
+
+      if (existingPharmacy) {
+        return res.status(400).json({
+          success: false,
+          error: "Pharmacy with this code already exists",
+        } as ApiResponse)
+      }
+
+      const pharmacy = await prisma.pharmacy.create({
+        data: {
+          name,
+          code,
+          address,
+          phone,
+          email,
+          region,
+          type,
+          status: "active",
+          createdBy: req.user!.id,
+        },
+      })
+
+      return res.status(201).json({
+        success: true,
+        data: pharmacy,
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Create pharmacy error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
+
+  // Create pharmacist (user + profile)
+  static async createPharmacist(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { user, licenseNumber, pharmacyId } = req.body
+      const { firstName, lastName, email, phone, password, nationalId } = user
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ email }, { phone }, { nationalId }],
+        },
+      })
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          error: "User with this email, phone, or national ID already exists",
+        } as ApiResponse)
+      }
+
+      // Check if pharmacy exists
+      const pharmacy = await prisma.pharmacy.findUnique({
+        where: { id: pharmacyId },
+      })
+
+      if (!pharmacy) {
+        return res.status(400).json({
+          success: false,
+          error: "Pharmacy not found",
+        } as ApiResponse)
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 12)
+
+      // Create user and pharmacist profile in transaction
+      const result = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            nationalId,
+            firstName,
+            lastName,
+            email,
+            phone,
+            password: hashedPassword,
+            role: "pharmacist",
+            createdBy: req.user!.id,
+          },
+        })
+
+        const pharmacist = await tx.pharmacist.create({
+          data: {
+            userId: newUser.id,
+            licenseNumber,
+            pharmacyId,
+            isActive: true,
+          },
+          include: {
+            user: {
+              select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+            },
+            pharmacy: {
+              select: { name: true, code: true },
+            },
+          },
+        })
+
+        return { user: newUser, pharmacist }
+      })
+
+      return res.status(201).json({
+        success: true,
+        data: result.pharmacist,
+        message: "Pharmacist created successfully",
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Create pharmacist error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
+
+  // Get all pharmacies
+  static async getPharmacies(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { page = 1, limit = 10, region, status } = req.query
+      const skip = (Number(page) - 1) * Number(limit)
+
+      const whereClause: any = {}
+      if (region) whereClause.region = region
+      if (status) whereClause.status = status
+
+      const [pharmacies, total] = await Promise.all([
+        prisma.pharmacy.findMany({
+          where: whereClause,
+          include: {
+            _count: {
+              select: { pharmacists: true, prescriptions: true },
+            },
+          },
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.pharmacy.count({ where: whereClause }),
+      ])
+
+      return res.json({
+        success: true,
+        data: pharmacies,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          totalPages: Math.ceil(total / Number(limit)),
+        },
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Get pharmacies error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
 
   // Get audit logs
   static async getAuditLogs(req: AuthenticatedRequest, res: Response): Promise<Response> {
@@ -792,4 +972,6 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
       } as ApiResponse)
     }
   }
+
+  
 }
