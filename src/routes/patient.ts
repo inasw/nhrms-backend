@@ -299,6 +299,110 @@ router.get("/records", PatientController.getMedicalRecords)
 
 /**
  * @swagger
+ * /api/patient/prescriptions:
+ *   get:
+ *     tags: [Patient]
+ *     summary: Get prescriptions
+ *     description: Retrieves the patient's prescription history
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of prescriptions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       medication:
+ *                         type: string
+ *                       dosage:
+ *                         type: string
+ *                       prescribedBy:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/prescriptions", PatientController.getPrescriptions)
+
+/**
+ * @swagger
+ * /api/patient/lab-results:
+ *   get:
+ *     tags: [Patient]
+ *     summary: Get lab results
+ *     description: Retrieves the patient's laboratory test results
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of lab results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       test:
+ *                         type: string
+ *                       result:
+ *                         type: string
+ *                       date:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/lab-results", PatientController.getLabResults)
+
+/**
+ * @swagger
+ * /api/patient/prescriptions/{id}/refill:
+ *   post:
+ *     tags: [Patient]
+ *     summary: Request prescription refill
+ *     description: Request a refill for an existing prescription
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Prescription ID
+ *     responses:
+ *       200:
+ *         description: Refill requested successfully
+ *       404:
+ *         description: Prescription not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/prescriptions/:id/refill", PatientController.requestRefill)
+
+/**
+ * @swagger
  * /api/patient/doctors:
  *   get:
  *     tags: [Patient]
