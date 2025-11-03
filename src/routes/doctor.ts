@@ -24,6 +24,7 @@ router.post("/appointment-requests/:id/approve", validate(approveAppointmentSche
 router.post("/appointment-requests/:id/reject", validate(rejectAppointmentSchema), DoctorController.rejectAppointmentRequest)
 
 // Lab routes
+router.get("/lab-techs", DoctorController.getLabTechs)
 router.post("/lab-requests", validate(createLabRequestSchema), DoctorController.createLabRequest)
 router.get("/lab-requests", DoctorController.getLabRequests)
 router.get("/lab-results", DoctorController.getLabResults)

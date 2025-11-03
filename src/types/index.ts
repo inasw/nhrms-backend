@@ -3,13 +3,15 @@ import type { Request } from 'express';
    import { User } from '@prisma/client';
 
    export interface AuthenticatedRequest extends Request {
-      user?: User & { hospitalId?: string; pharmacyId?: string };
+      user?: User & { hospitalId?: string; pharmacyId?: string; regionAdminId?: string; region?: string };
    }
 
    export interface JWTPayload extends JwtPayload {
      userId: string;
      role: string;
      hospitalId?: string;
+     regionAdminId?: string;
+     region?: string;
    }
 
    export interface FaydaPatientProfile {
@@ -38,5 +40,104 @@ import type { Request } from 'express';
        limit: number;
        total: number;
        totalPages: number;
+     };
+   }
+
+   // Ethiopian Regions
+   export const ETHIOPIAN_REGIONS = [
+     "Addis Ababa",
+     "Afar",
+     "Amhara",
+     "Benishangul-Gumuz",
+     "Gambela",
+     "Harari",
+     "Oromia",
+     "Sidama",
+     "Somali",
+     "SNNP",
+     "Southwest Ethiopia",
+     "Tigray"
+   ] as const;
+
+   export type EthiopianRegion = typeof ETHIOPIAN_REGIONS[number];
+
+   // Region Admin specific interfaces
+   export interface IRegionAdmin {
+     id: string;
+     userId: string;
+     region: EthiopianRegion;
+     permissions: string[];
+     lastLogin?: Date;
+     createdAt: Date;
+     updatedAt: Date;
+   }
+
+   export interface IPharmacy {
+     id: string;
+     name: string;
+     code: string;
+     address: string;
+     phone: string;
+     email: string;
+     region: string;
+     licenseNumber: string;
+     type?: string;
+     status: string;
+     regionAdminId?: string;
+     createdAt: Date;
+     updatedAt: Date;
+   }
+
+   export interface RegionalReport {
+     metadata: {
+       region: string;
+       generatedAt: Date;
+       reportType: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
+       generatedBy: string;
+     };
+     patientStats: {
+       totalPatients: number;
+       newPatientsThisMonth: number;
+       activePatients: number;
+       patientGrowthRate: number;
+       averageVisitsPerPatient: number;
+       patientsByFacility: Array<{ facilityName: string; count: number }>;
+     };
+     demographics: {
+       ageDistribution: Record<string, number>;
+       genderDistribution: Record<string, number>;
+       locationDistribution: Array<{ city: string; count: number }>;
+       averageAge: number;
+     };
+     facilityPerformance: Array<{
+       facilityName: string;
+       totalAppointments: number;
+       completedAppointments: number;
+       canceledAppointments: number;
+       averageWaitTime: number;
+     }>;
+     serviceUtilization: {
+       totalAppointments: number;
+       appointmentsByType: Record<string, number>;
+       labTestsOrdered: number;
+       prescriptionsIssued: number;
+     };
+     diseasePrevalence: Array<{
+       diseaseName: string;
+       cases: number;
+       percentage: number;
+       trend: 'increasing' | 'decreasing' | 'stable';
+     }>;
+     pharmacyStats: {
+       totalPharmacies: number;
+       activePharmacies: number;
+       totalPrescriptionsDispensed: number;
+       topMedicationsDispensed: Array<{ medication: string; count: number }>;
+     };
+     staffProductivity: {
+       totalDoctors: number;
+       totalLabTechs: number;
+       totalPharmacists: number;
+       averagePatientsPerDoctor: number;
      };
    }

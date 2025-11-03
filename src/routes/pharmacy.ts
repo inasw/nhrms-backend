@@ -19,6 +19,7 @@ router.post("/prescriptions/:id/cancel", PharmacyController.cancelPrescription)
 
 // Patient search
 router.get("/patients/search", PharmacyController.searchPatients)
+router.get("/patients/recent", PharmacyController.getRecentPatients)
 
 // Dashboard
 router.get("/dashboard", PharmacyController.getDashboardStats)

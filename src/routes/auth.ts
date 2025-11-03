@@ -230,4 +230,21 @@ router.post("/refresh", AuthController.refreshToken)
  */
 router.post("/logout", AuthController.logout)
 
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Get current user info
+ *     description: Returns the current authenticated user's information
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User info retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/me", authenticate, AuthController.me)
+
 export default router

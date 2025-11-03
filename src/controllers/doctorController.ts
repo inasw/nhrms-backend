@@ -1169,6 +1169,53 @@ export class DoctorController {
     }
   }
 
+  // Get lab techs from same hospital
+  static async getLabTechs(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const doctorId = await DoctorController.getDoctorId(req.user!.id)
+      
+      // Get doctor's hospital
+      const doctor = await prisma.doctor.findUnique({
+        where: { id: doctorId },
+        select: { hospitalId: true },
+      })
+
+      if (!doctor) {
+        return res.status(404).json({
+          success: false,
+          error: "Doctor not found",
+        } as ApiResponse)
+      }
+
+      // Get lab techs from same hospital
+      const labTechs = await prisma.labTech.findMany({
+        where: {
+          hospitalId: doctor.hospitalId,
+          isActive: true,
+        },
+        include: {
+          user: {
+            select: { firstName: true, lastName: true },
+          },
+        },
+        orderBy: {
+          user: { firstName: "asc" },
+        },
+      })
+
+      return res.json({
+        success: true,
+        data: labTechs,
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Get lab techs error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
+
   // Helper method to get doctor ID from user ID
   private static async getDoctorId(userId: string): Promise<string> {
     const doctor = await prisma.doctor.findUnique({

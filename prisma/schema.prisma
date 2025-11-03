@@ -24,11 +24,12 @@ model User {
   updatedAt  DateTime @updatedAt
 
   // Relations
-  doctor     Doctor?
-  patient    Patient?
-  adminUser  AdminUser?
-  labTech    LabTech?
-  pharmacist Pharmacist?
+  doctor        Doctor?
+  patient       Patient?
+  adminUser     AdminUser?
+  labTech       LabTech?
+  pharmacist    Pharmacist?
+  regionAdmin   RegionAdmin?
   generatedReports Report[]
   
   // Invitation flow
@@ -104,22 +105,26 @@ model Pharmacist {
 }
 
 model Pharmacy {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  code          String     @unique
-  address       String
-  phone         String
-  email         String
-  region        String
-  type          String?    // public, private, etc.
-  status        String     @default("active")
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  createdBy     String     @db.ObjectId
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String        @unique
+  address         String
+  phone           String
+  email           String
+  region          String
+  licenseNumber   String        @unique
+  type            String?       // public, private, etc.
+  status          String        @default("active")
+  regionAdminId   String?       @db.ObjectId
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  createdBy       String?       @db.ObjectId
+  updatedBy       String?       @db.ObjectId
 
   // Relations
-  pharmacists   Pharmacist[]
-  prescriptions Prescription[]
+  regionAdmin     RegionAdmin?  @relation(fields: [regionAdminId], references: [id])
+  pharmacists     Pharmacist[]
+  prescriptions   Prescription[]
 
   @@map("pharmacies")
 }
@@ -159,47 +164,70 @@ model Patient {
 }
 
 model Hospital {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
-  name           String
-  code           String        @unique
-  address        String
-  phone          String
-  email          String
-  region         String
-  type           HospitalType
-  operatingHours Json
-  status         HospitalStatus @default(active)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  createdBy  String   @db.ObjectId 
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String          @unique
+  address         String
+  phone           String
+  email           String
+  region          String
+  type            HospitalType
+  operatingHours  Json
+  status          HospitalStatus  @default(active)
+  regionAdminId   String?         @db.ObjectId
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       String?         @db.ObjectId
+  updatedBy       String?         @db.ObjectId
 
   // Relations
-  doctors            Doctor[]
-  adminUsers         AdminUser[]
-  appointments       Appointment[]
+  regionAdmin         RegionAdmin?        @relation(fields: [regionAdminId], references: [id])
+  doctors             Doctor[]
+  adminUsers          AdminUser[]
+  appointments        Appointment[]
   appointmentRequests AppointmentRequest[]
-  systemSettings     SystemSetting[]
-  reports            Report[]
-  labTechs           LabTech[]
+  systemSettings      SystemSetting[]
+  reports             Report[]
+  labTechs            LabTech[]
 
   @@map("hospitals")
 }
 
 model AdminUser {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String        @unique @db.ObjectId
+  hospitalId      String?       @db.ObjectId
+  regionAdminId   String?       @db.ObjectId
+  role            AdminRole
+  permissions     String[]      @default([])
+  lastLogin       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital      Hospital?     @relation(fields: [hospitalId], references: [id])
+  regionAdmin   RegionAdmin?  @relation(fields: [regionAdminId], references: [id])
+
+  @@map("admin_users")
+}
+
+model RegionAdmin {
   id          String     @id @default(auto()) @map("_id") @db.ObjectId
   userId      String     @unique @db.ObjectId
-  hospitalId  String?    @db.ObjectId
-  role        AdminRole
+  region      String     // One of the 12 Ethiopian regions
   permissions String[]   @default([])
   lastLogin   DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   // Relations
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  hospital Hospital? @relation(fields: [hospitalId], references: [id])
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospitals   Hospital[]   // Hospitals created by this region admin
+  pharmacies  Pharmacy[]   // Pharmacies created by this region admin
+  adminUsers  AdminUser[]  // Hospital admins created by this region admin
 
-  @@map("admin_users")
+  @@map("region_admins")
 }
 
 model DoctorPatientAssignment {
@@ -486,6 +514,7 @@ enum UserRole {
   lab_tech
   pharmacist
   hospital_admin
+  region_admin
   moh_admin
   super_admin
 }

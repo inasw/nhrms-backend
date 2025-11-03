@@ -20,6 +20,7 @@ export class AuthController {
           adminUser: { include: { hospital: true } },
           labTech: { include: { hospital: true } },
           pharmacist: { include: { pharmacy: true } },
+          regionAdmin: true,
         },
       })
 
@@ -50,6 +51,7 @@ export class AuthController {
         role: user.role,
         hospitalId: user.doctor?.hospitalId || user.adminUser?.hospitalId,
         pharmacyId: user.pharmacist?.pharmacyId,
+        region: user.regionAdmin?.region,
       }
 
       const accessToken = generateAccessToken(tokenPayload)
@@ -104,6 +106,14 @@ export class AuthController {
           id: user.pharmacist.id,
           licenseNumber: user.pharmacist.licenseNumber,
           pharmacy: user.pharmacist.pharmacy,
+        }
+      }
+
+      if (user.regionAdmin) {
+        userData.regionAdmin = {
+          id: user.regionAdmin.id,
+          region: user.regionAdmin.region,
+          permissions: user.regionAdmin.permissions,
         }
       }
 
@@ -380,6 +390,62 @@ static async registerDoctor(req: Request, res: Response): Promise<Response> {
       return res.status(401).json({
         success: false,
         error: "Invalid refresh token",
+      } as ApiResponse)
+    }
+  }
+
+  // Get current user info
+  static async me(req: any, res: Response): Promise<Response> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        include: {
+          doctor: { include: { hospital: true } },
+          patient: true,
+          adminUser: { include: { hospital: true } },
+          labTech: { include: { hospital: true } },
+          pharmacist: { include: { pharmacy: true } },
+          regionAdmin: true,
+        },
+      })
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: "User not found",
+        } as ApiResponse)
+      }
+
+      // Prepare user data based on role
+      const userData: any = {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+      }
+
+      if (user.labTech) { 
+        userData.labTech = {
+          id: user.labTech.id,
+          licenseNumber: user.labTech.licenseNumber,
+          hospital: user.labTech.hospital,
+          user: {
+            firstName: user.firstName,
+            lastName: user.lastName,
+          },
+        }
+      }
+
+      return res.json({
+        success: true,
+        data: userData,
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Get user info error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
       } as ApiResponse)
     }
   }

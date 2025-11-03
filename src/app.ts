@@ -13,6 +13,7 @@ import adminRoutes from "./routes/admin"
 import superAdminRoutes from "./routes/superAdmin"
 import labTechRoutes from "./routes/labTech"
 import pharmacyRoutes from "./routes/pharmacy"
+import regionAdminRoutes from "./routes/regionAdmin"
 
 const app = express()
 
@@ -20,7 +21,7 @@ const app = express()
 app.use(helmet())
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: [process.env.FRONTEND_URL || "http://localhost:3000", "http://localhost:3001"],
     credentials: true,
   }),
 )
@@ -46,6 +47,7 @@ app.use("/api/doctor", doctorRoutes)
 app.use("/api/patient", patientRoutes)
 app.use("/api/admin", adminRoutes)
 app.use("/api/superadmin", superAdminRoutes)
+app.use("/api/regionadmin", regionAdminRoutes)
 app.use("/api/labtech", labTechRoutes)
 app.use("/api/pharmacy", pharmacyRoutes)
 

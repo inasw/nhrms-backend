@@ -517,4 +517,11 @@ router.get("/audit-logs", SuperAdminController.getAuditLogs)
  */
 router.get("/patients", SuperAdminController.getPatients)
 
+// Region Admin Management
+router.get("/regionadmins", SuperAdminController.getRegionAdmins)
+router.post("/regionadmins", SuperAdminController.createRegionAdmin)
+router.put("/regionadmins/:id", SuperAdminController.updateRegionAdmin)
+router.delete("/regionadmins/:id", SuperAdminController.deleteRegionAdmin)
+router.get("/regions/statistics", SuperAdminController.getRegionStatistics)
+
 export default router

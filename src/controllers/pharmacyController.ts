@@ -192,6 +192,67 @@ export class PharmacyController {
     }
   }
 
+  // Get recent patients
+  static async getRecentPatients(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const pharmacistId = await PharmacyController.getPharmacistId(req.user!.id)
+      const pharmacist = await prisma.pharmacist.findUnique({
+        where: { id: pharmacistId },
+        select: { pharmacyId: true },
+      })
+
+      // Get patients who have prescriptions from this pharmacy, ordered by most recent
+      const recentPatients = await prisma.patient.findMany({
+        where: {
+          prescriptions: {
+            some: {
+              pharmacyId: pharmacist!.pharmacyId,
+            },
+          },
+        },
+        include: {
+          user: {
+            select: { firstName: true, lastName: true, phone: true },
+          },
+          prescriptions: {
+            where: {
+              pharmacyId: pharmacist!.pharmacyId,
+            },
+            include: {
+              doctor: {
+                include: {
+                  user: {
+                    select: { firstName: true, lastName: true },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              issuedAt: 'desc',
+            },
+          },
+        },
+        orderBy: {
+          prescriptions: {
+            _count: 'desc',
+          },
+        },
+        take: 10,
+      })
+
+      return res.json({
+        success: true,
+        data: recentPatients,
+      } as ApiResponse)
+    } catch (error) {
+      console.error("Get recent patients error:", error)
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      } as ApiResponse)
+    }
+  }
+
   // Cancel prescription
   static async cancelPrescription(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {

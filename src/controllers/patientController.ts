@@ -286,9 +286,14 @@ export class PatientController {
           where: appointmentWhereClause,
           include: {
             doctor: {
-              include: {
+              select: {
+                id: true,
+                specialization: true,
                 user: {
                   select: { firstName: true, lastName: true },
+                },
+                hospital: {
+                  select: { name: true, address: true, phone: true },
                 },
               },
             },
@@ -361,9 +366,14 @@ export class PatientController {
       if (doctorIds.length > 0) {
         const doctors = await prisma.doctor.findMany({
           where: { id: { in: doctorIds } },
-          include: {
+          select: {
+            id: true,
+            specialization: true,
             user: {
               select: { firstName: true, lastName: true },
+            },
+            hospital: {
+              select: { name: true, address: true, phone: true },
             },
           },
         });
@@ -374,12 +384,7 @@ export class PatientController {
           if (originalRequest?.doctorId) {
             const doctor = doctors.find(d => d.id === originalRequest.doctorId);
             if (doctor) {
-              request.doctor = {
-                user: {
-                  firstName: doctor.user.firstName,
-                  lastName: doctor.user.lastName,
-                },
-              };
+              request.doctor = doctor as any;
             }
           }
         });

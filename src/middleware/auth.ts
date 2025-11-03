@@ -115,10 +115,10 @@ import type { AuthenticatedRequest } from '../types';
 import prisma from '../config/database';
 
 // Local UserRole type union based on schema enum
-type UserRole = 'patient' | 'doctor' | 'lab_tech' | 'pharmacist' | 'hospital_admin' | 'moh_admin' | 'super_admin';
+type UserRole = 'patient' | 'doctor' | 'lab_tech' | 'pharmacist' | 'hospital_admin' | 'region_admin' | 'moh_admin' | 'super_admin';
 
 // List of valid UserRole values for validation
-const validRoles = ['patient', 'doctor', 'lab_tech', 'pharmacist', 'hospital_admin', 'moh_admin', 'super_admin'];
+const validRoles = ['patient', 'doctor', 'lab_tech', 'pharmacist', 'hospital_admin', 'region_admin', 'moh_admin', 'super_admin'];
 
 export const authenticate = async (
   req: AuthenticatedRequest,
@@ -168,6 +168,7 @@ export const authenticate = async (
         adminUser: { select: { hospitalId: true } },
         labTech: { select: { hospitalId: true } },
         pharmacist: { select: { pharmacyId: true } },
+        regionAdmin: { select: { region: true } },
         inviteExpiresAt: true,
         inviteToken: true,
       },
@@ -187,6 +188,8 @@ export const authenticate = async (
         user.adminUser?.hospitalId ||
         user.labTech?.hospitalId,
       pharmacyId: user.pharmacist?.pharmacyId,
+      region: user.regionAdmin?.region,
+      regionAdminId: user.regionAdmin ? user.id : undefined,
     };
 
     return next();
@@ -224,5 +227,9 @@ export const requirePatient = authorize(['patient']);
 export const requirePharmacist = authorize(['pharmacist']);
 export const requireLabTech = authorize(['lab_tech']);
 export const requireHospitalAdmin = authorize(['hospital_admin']);
+export const requireRegionAdmin = authorize(['region_admin']);
 export const requireSuperAdmin = authorize(['super_admin', 'moh_admin']);
-export const requireAdmin = authorize(['hospital_admin', 'super_admin', 'moh_admin']);
+export const requireAdmin = authorize(['hospital_admin', 'region_admin', 'super_admin', 'moh_admin']);
+
+// Helper to authorize roles (accepts array)
+export const authorizeRoles = (roles: UserRole[]) => authorize(roles);

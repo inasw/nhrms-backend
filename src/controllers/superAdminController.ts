@@ -749,7 +749,14 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
   // Create pharmacy
   static async createPharmacy(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
-      const { name, code, address, phone, email, region, type } = req.body
+      const { name, code, address, phone, email, region, type, licenseNumber } = req.body
+
+      if (!licenseNumber) {
+        return res.status(400).json({
+          success: false,
+          error: "License number is required"
+        } as ApiResponse)
+      }
 
       const existingPharmacy = await prisma.pharmacy.findUnique({
         where: { code },
@@ -771,6 +778,7 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
           email,
           region,
           type,
+          licenseNumber,
           status: "active",
           createdBy: req.user!.id,
         },
@@ -970,6 +978,348 @@ static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promis
         success: false,
         error: "Internal server error",
       } as ApiResponse)
+    }
+  }
+
+  // ============ REGION ADMIN MANAGEMENT ============
+
+  // Get all region admins
+  static async getRegionAdmins(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { page = 1, limit = 20, region } = req.query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const whereClause: any = {};
+      if (region) {
+        whereClause.region = region as string;
+      }
+
+      const [regionAdmins, total] = await Promise.all([
+        prisma.regionAdmin.findMany({
+          where: whereClause,
+          include: {
+            user: {
+              select: {
+                id: true,
+                nationalId: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                isActive: true,
+                lastLogin: true,
+                createdAt: true
+              }
+            },
+            hospitals: { select: { id: true, name: true } },
+            pharmacies: { select: { id: true, name: true } },
+            adminUsers: { select: { id: true } }
+          },
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' }
+        }),
+        prisma.regionAdmin.count({ where: whereClause })
+      ]);
+
+      return res.json({
+        success: true,
+        data: regionAdmins,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          totalPages: Math.ceil(total / Number(limit))
+        }
+      } as ApiResponse);
+    } catch (error) {
+      console.error('Get region admins error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      } as ApiResponse);
+    }
+  }
+
+  // Create a new region admin
+  static async createRegionAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { nationalId, firstName, lastName, email, phone, password, region, permissions } = req.body;
+
+      // Validate required fields
+      if (!nationalId || !firstName || !lastName || !email || !phone || !password || !region) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields'
+        } as ApiResponse);
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { nationalId },
+            { email },
+            { phone }
+          ]
+        }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          error: 'User with this national ID, email, or phone already exists'
+        } as ApiResponse);
+      }
+
+      // Check if region already has an admin
+      const existingRegionAdmin = await prisma.regionAdmin.findFirst({
+        where: { region }
+      });
+
+      if (existingRegionAdmin) {
+        return res.status(400).json({
+          success: false,
+          error: `Region ${region} already has an admin assigned`
+        } as ApiResponse);
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create user and region admin in transaction
+      const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            nationalId,
+            firstName,
+            lastName,
+            email,
+            phone,
+            password: hashedPassword,
+            role: 'region_admin',
+            isActive: true,
+            createdBy: req.user!.id
+          }
+        });
+
+        const regionAdmin = await tx.regionAdmin.create({
+          data: {
+            userId: user.id,
+            region,
+            permissions: permissions || []
+          }
+        });
+
+        return { user, regionAdmin };
+      });
+
+      // Log the action
+      await prisma.auditLog.create({
+        data: {
+          action: 'region_admin_created',
+          entityType: 'RegionAdmin',
+          entityId: result.regionAdmin.id,
+          performedBy: req.user!.id,
+          metadata: { region, name: `${firstName} ${lastName}` }
+        }
+      });
+
+      return res.status(201).json({
+        success: true,
+        data: {
+          user: {
+            id: result.user.id,
+            nationalId: result.user.nationalId,
+            firstName: result.user.firstName,
+            lastName: result.user.lastName,
+            email: result.user.email,
+            phone: result.user.phone
+          },
+          regionAdmin: result.regionAdmin
+        },
+        message: 'Region admin created successfully'
+      } as ApiResponse);
+    } catch (error) {
+      console.error('Create region admin error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      } as ApiResponse);
+    }
+  }
+
+  // Update a region admin
+  static async updateRegionAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { id } = req.params;
+      const { firstName, lastName, email, phone, region, permissions, isActive } = req.body;
+
+      const regionAdmin = await prisma.regionAdmin.findUnique({
+        where: { id },
+        include: { user: true }
+      });
+
+      if (!regionAdmin) {
+        return res.status(404).json({
+          success: false,
+          error: 'Region admin not found'
+        } as ApiResponse);
+      }
+
+      // If changing region, check if new region already has an admin
+      if (region && region !== regionAdmin.region) {
+        const existingRegionAdmin = await prisma.regionAdmin.findFirst({
+          where: { region, id: { not: id } }
+        });
+
+        if (existingRegionAdmin) {
+          return res.status(400).json({
+            success: false,
+            error: `Region ${region} already has an admin assigned`
+          } as ApiResponse);
+        }
+      }
+
+      // Update in transaction
+      const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.update({
+          where: { id: regionAdmin.userId },
+          data: {
+            firstName,
+            lastName,
+            email,
+            phone,
+            isActive,
+            updatedBy: req.user!.id
+          }
+        });
+
+        const updatedRegionAdmin = await tx.regionAdmin.update({
+          where: { id },
+          data: {
+            region,
+            permissions
+          }
+        });
+
+        return { user, regionAdmin: updatedRegionAdmin };
+      });
+
+      // Log the action
+      await prisma.auditLog.create({
+        data: {
+          action: 'region_admin_updated',
+          entityType: 'RegionAdmin',
+          entityId: id,
+          performedBy: req.user!.id,
+          metadata: { updates: req.body }
+        }
+      });
+
+      return res.json({
+        success: true,
+        data: result,
+        message: 'Region admin updated successfully'
+      } as ApiResponse);
+    } catch (error) {
+      console.error('Update region admin error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      } as ApiResponse);
+    }
+  }
+
+  // Delete a region admin
+  static async deleteRegionAdmin(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { id } = req.params;
+
+      const regionAdmin = await prisma.regionAdmin.findUnique({
+        where: { id },
+        include: { user: true }
+      });
+
+      if (!regionAdmin) {
+        return res.status(404).json({
+          success: false,
+          error: 'Region admin not found'
+        } as ApiResponse);
+      }
+
+      // Delete user (cascade will delete regionAdmin)
+      await prisma.user.delete({
+        where: { id: regionAdmin.userId }
+      });
+
+      // Log the action
+      await prisma.auditLog.create({
+        data: {
+          action: 'region_admin_deleted',
+          entityType: 'RegionAdmin',
+          entityId: id,
+          performedBy: req.user!.id,
+          metadata: { 
+            region: regionAdmin.region,
+            name: `${regionAdmin.user.firstName} ${regionAdmin.user.lastName}`
+          }
+        }
+      });
+
+      return res.json({
+        success: true,
+        message: 'Region admin deleted successfully'
+      } as ApiResponse);
+    } catch (error) {
+      console.error('Delete region admin error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      } as ApiResponse);
+    }
+  }
+
+  // Get statistics for all regions
+  static async getRegionStatistics(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const regions = await prisma.regionAdmin.findMany({
+        include: {
+          hospitals: { select: { id: true, status: true } },
+          pharmacies: { select: { id: true, status: true } },
+          adminUsers: { select: { id: true } }
+        }
+      });
+
+      const statistics = await Promise.all(
+        regions.map(async (regionAdmin) => {
+          const patientCount = await prisma.patient.count({
+            where: { region: regionAdmin.region }
+          });
+
+          return {
+            region: regionAdmin.region,
+            regionAdminId: regionAdmin.id,
+            hospitals: regionAdmin.hospitals.length,
+            activeHospitals: regionAdmin.hospitals.filter(h => h.status === 'active').length,
+            pharmacies: regionAdmin.pharmacies.length,
+            activePharmacies: regionAdmin.pharmacies.filter(p => p.status === 'active').length,
+            hospitalAdmins: regionAdmin.adminUsers.length,
+            patients: patientCount
+          };
+        })
+      );
+
+      return res.json({
+        success: true,
+        data: statistics
+      } as ApiResponse);
+    } catch (error) {
+      console.error('Get region statistics error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      } as ApiResponse);
     }
   }
 
